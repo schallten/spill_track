@@ -166,3 +166,13 @@ export const NARRATION: Narration[] = [
   { t: 9_500, step: 'STEP 3 / 3 · VERDICT', text: 'Course, speed and ship type are scored — MT OCEAN GLORY tops the list at 92% likelihood.' },
   { t: 12_300, step: 'COMPLETE', text: 'Done in seconds instead of months. Investigators get a ready-made evidence package.' },
 ]
+
+/** Real-world stack shown in the console's DATA & METHODS strip and the dossier */
+export const SOURCES: { k: string; v: string }[] = [
+  { k: 'SENTINEL-1 SAR', v: 'ESA Copernicus Open Access' },
+  { k: 'U-NET SEGMENTATION', v: 'PyTorch · Zenodo SAR dataset' },
+  { k: 'WIND + CURRENTS', v: 'ERA5 Reanalysis · NOAA OSCAR' },
+  { k: 'DRIFT MODEL', v: 'Lagrangian particle advection' },
+  { k: 'AIS TRACKING', v: 'Marine Cadastre AIS' },
+  { k: 'RANKING', v: 'Explainable Bayesian scoring' },
+]

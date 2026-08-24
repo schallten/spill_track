@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
-import { LOG_SCRIPT, NARRATION, TOTAL_MS, T_DETECT, T_BACKTRACK, T_ATTRIBUTE } from './data'
+import { LOG_SCRIPT, NARRATION, SOURCES, TOTAL_MS, T_DETECT, T_BACKTRACK, T_ATTRIBUTE } from './data'
 import type { LogLine } from './data'
 import { TacticalMap } from './TacticalMap'
 import { MetricsPanel, SuspectPanel, ConsolePanel } from './Panels'
 import { Timeline } from './Timeline'
+import { Dossier } from './Dossier'
 
 const TICK = 100
 
@@ -20,6 +21,7 @@ export default function App() {
   const [clock, setClock] = useState<number | null>(null)
   const [paused, setPaused] = useState(false)
   const [hoverId, setHoverId] = useState<string | null>(null)
+  const [report, setReport] = useState(false)
   const [now, setNow] = useState(() => new Date())
   const [uptime, setUptime] = useState('00:00')
 
@@ -60,6 +62,19 @@ export default function App() {
     setClock(t)
     if (t > 0 && t < TOTAL_MS) setPaused(false)
   }
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') return setReport(false)
+      if (e.target instanceof HTMLInputElement) return
+      if (e.key === ' ') { e.preventDefault(); toggle() }
+      else if (['1', '2', '3'].includes(e.key)) seek(STAGES[Number(e.key) - 1].win[0] + TICK)
+      else if (e.key === 'r' || e.key === 'R') startRun()
+      else if ((e.key === 'g' || e.key === 'G') && (clock ?? 0) >= TOTAL_MS) setReport(r => !r)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  })
 
   const ist = now.toLocaleTimeString('en-GB', { timeZone: 'Asia/Kolkata', hour12: false })
 
@@ -120,6 +135,22 @@ export default function App() {
               {phase === 'idle' ? '▶ RUN ANALYSIS' : '↻ RE-RUN ANALYSIS'}
             </button>
           )}
+          {phase === 'done' && !report && (
+            <button className="reportbtn" onClick={() => setReport(true)}>⎘ GENERATE REPORT</button>
+          )}
+        </div></div>
+
+        <div className="clip srcbox"><div className="clip-in">
+          <div className="panel-title"><span className="tick">▮</span> DATA &amp; METHODS</div>
+          <div className="src-list">
+            {SOURCES.map(s => (
+              <div key={s.k} className="src-row">
+                <span className="src-dot" />
+                <span>{s.k}</span>
+                <em>{s.v}</em>
+              </div>
+            ))}
+          </div>
         </div></div>
       </aside>
 
@@ -162,8 +193,11 @@ export default function App() {
 
       <footer className="footer">
         <span>// UNCLASSIFIED // FOR DEMONSTRATION ONLY //</span>
+        <span className="kbd-hint">SPACE play/pause · 1·2·3 jump stage · R replay · G report · ESC close</span>
         <span>UPLINK <b>SIMULATED</b> · SENSOR <b>S1A</b> · OP <b>RIBO</b> · SESSION <b>{uptime}</b> · BUILD <b>2.4.1</b></span>
       </footer>
+
+      {report && <Dossier onClose={() => setReport(false)} />}
     </div>
   )
 }

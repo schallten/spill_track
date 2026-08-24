@@ -9,16 +9,17 @@ interface MetricDef {
   v: string
   cls?: string
   t: number
+  tip?: string
 }
 
 const METRICS: MetricDef[] = [
-  { k: 'SATELLITE IMAGE', v: 'Sentinel-1 SAR', t: 400 },
-  { k: 'AI BOUNDARY ACCURACY', v: '78 %', cls: 'cyan', t: 3_000 },
-  { k: 'SPILL SIZE', v: '14.7 km²', t: 2_800 },
-  { k: 'ORIGIN PINPOINTED TO', v: '±14 km', cls: 'amber', t: 8_000 },
-  { k: 'SPILL AGE ESTIMATE', v: '≈ 9 h', cls: 'amber', t: 8_000 },
-  { k: 'CULPRIT IN TOP-3 PICKS', v: '80 %', cls: 'green', t: 12_500 },
-  { k: 'OLD MANUAL METHOD TAKES', v: '40–80 days', cls: 'red', t: 12_500 },
+  { k: 'SATELLITE IMAGE', v: 'Sentinel-1 SAR', t: 400, tip: 'ESA radar satellite — sees oil slicks even through clouds and at night' },
+  { k: 'AI BOUNDARY ACCURACY', v: '78 %', cls: 'cyan', t: 3_000, tip: 'IoU — overlap between the AI outline and a human expert annotation' },
+  { k: 'SPILL SIZE', v: '14.7 km²', t: 2_800, tip: 'Area enclosed by the detected slick boundary' },
+  { k: 'ORIGIN PINPOINTED TO', v: '±14 km', cls: 'amber', t: 8_000, tip: 'Radius of the estimated source location from drift back-tracking' },
+  { k: 'SPILL AGE ESTIMATE', v: '≈ 9 h', cls: 'amber', t: 8_000, tip: 'How long before imaging the spill likely began' },
+  { k: 'CULPRIT IN TOP-3 PICKS', v: '80 %', cls: 'green', t: 12_500, tip: 'Share of validation cases where the true culprit appears in the top 3 ranked suspects' },
+  { k: 'OLD MANUAL METHOD TAKES', v: '40–80 days', cls: 'red', t: 12_500, tip: 'Typical manual investigation span today (satellite review + AIS correlation by hand)' },
 ]
 
 export function MetricsPanel({ elapsed }: { elapsed: number }) {
@@ -28,7 +29,7 @@ export function MetricsPanel({ elapsed }: { elapsed: number }) {
         <div className="panel-title"><span className="tick">▮</span> PIPELINE METRICS</div>
         <div className="panel-body metrics-body">
           {METRICS.map(m => (
-            <div className="mrow" key={m.k}>
+            <div className="mrow" key={m.k} title={m.tip}>
               <span className="k">{m.k}</span>
               {elapsed >= m.t
                 ? <span className={`v ${m.cls ?? ''}`}>{m.v}</span>

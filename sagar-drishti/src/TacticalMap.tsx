@@ -1,47 +1,31 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import L from 'leaflet'
+import 'leaflet/dist/leaflet.css'
 import type { Vessel } from './data'
 import {
-  SLICK, DRIFT_PATH, ORIGIN, ORIGIN_LABEL, SLICK_LABEL,
+  SLICK, DRIFT_PATH, ORIGIN,
   T_DETECT, T_BACKTRACK, T_ATTRIBUTE, VESSELS,
 } from './data'
 
 type Pt = [number, number]
+type LL = [number, number]
 
 const clamp01 = (u: number) => Math.max(0, Math.min(1, u))
 const stageP = (ms: number, [a, b]: [number, number]) => clamp01((ms - a) / (b - a))
 
-/** map coords -> geo coords (matches graticule: x 40..980 = 67..77°E, y 36..664 = 17..9°N) */
-function toLatLon([x, y]: Pt): string {
-  const lon = 67 + ((x - 40) / 940) * 10
-  const lat = 17 - ((y - 36) / 628) * 8
-  return `${lat.toFixed(2)}°N ${lon.toFixed(2)}°E`
-}
+/** legacy demo-scene coords -> real geography (matches the lat/lon labels used throughout) */
+const ptToLL = ([x, y]: Pt): LL => [
+  17 - ((y - 36) / 628) * 8,
+  67 + ((x - 40) / 940) * 10,
+]
 
-function polyLen(pts: Pt[]): number {
-  let L = 0
-  for (let i = 1; i < pts.length; i++) L += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1])
-  return L
-}
+const lerpLL = (a: LL, b: LL, f: number): LL => [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f]
 
-function pointAlong(pts: Pt[], u: number): Pt {
-  const s = clamp01(u)
-  const total = polyLen(pts)
-  let target = s * total
-  for (let i = 1; i < pts.length; i++) {
-    const seg = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1])
-    if (target <= seg || i === pts.length - 1) {
-      const f = seg === 0 ? 0 : Math.min(1, target / seg)
-      return [
-        pts[i - 1][0] + (pts[i][0] - pts[i - 1][0]) * f,
-        pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * f,
-      ]
-    }
-    target -= seg
-  }
-  return pts[pts.length - 1]
+function alongLL(pts: LL[], u: number): LL {
+  const s = clamp01(u) * (pts.length - 1)
+  const i = Math.min(Math.floor(s), pts.length - 2)
+  return lerpLL(pts[i], pts[i + 1], s - i)
 }
-
-const toPath = (pts: Pt[]) => 'M ' + pts.map(p => `${p[0]},${p[1]}`).join(' L ')
 
 const TYPE_COLOR: Record<Vessel['type'], string> = {
   TANKER: '#ffb454',
@@ -49,317 +33,239 @@ const TYPE_COLOR: Record<Vessel['type'], string> = {
   FISHING: '#42e084',
 }
 
-function Marker({ type }: { type: Vessel['type'] }) {
-  if (type === 'TANKER') return <path d="M0,-7.5 L6.5,5.5 L-6.5,5.5 Z" />
-  if (type === 'CARGO') return <rect x={-5.5} y={-5.5} width={11} height={11} />
-  return <path d="M0,-6.5 L6.5,0 L0,6.5 L-6.5,0 Z" />
+const SHAPE: Record<Vessel['type'], string> = {
+  TANKER: '<svg viewBox="-8 -8 16 16"><path d="M0,-7.5 L6.5,5.5 L-6.5,5.5 Z"/></svg>',
+  CARGO: '<svg viewBox="-8 -8 16 16"><rect x="-5.5" y="-5.5" width="11" height="11"/></svg>',
+  FISHING: '<svg viewBox="-8 -8 16 16"><path d="M0,-6.5 L6.5,0 L0,6.5 L-6.5,0 Z"/></svg>',
 }
 
-interface TagProps {
-  x: number
-  y: number
-  color: string
-  lines: string[]
-}
-function Tag({ x, y, color, lines }: TagProps) {
-  const w = Math.max(...lines.map(l => l.length)) * 6.6 + 16
-  const h = lines.length * 15 + 10
-  return (
-    <g>
-      <rect x={x} y={y} width={w} height={h} fill="rgba(3,11,19,.88)" stroke={color} strokeWidth={1} />
-      {lines.map((l, i) => (
-        <text key={i} x={x + 8} y={y + 17 + i * 15} fontSize={11} fill={color} className="svg-label" style={{ fill: color }}>
-          {l}
-        </text>
-      ))}
-    </g>
-  )
+const fmtLL = (ll: LL) => `${ll[0].toFixed(2)}°N ${ll[1].toFixed(2)}°E`
+
+interface FixedLayers {
+  slick: L.Polygon
+  slickTip: L.Circle
+  drift: L.Polyline
+  tracers: L.CircleMarker[]
+  originDot: L.Marker
+  uncertain: L.Circle
+  ring25: L.Circle
+  ring50: L.Circle
+  originTip: L.Marker
+  suspectRing: L.Marker
 }
 
-const LAND =
-  'M 700 -10 L 716 52 C 736 118 742 158 758 208 C 774 262 768 300 786 350 ' +
-  'C 804 404 818 430 836 480 C 856 534 852 570 878 620 L 898 710 L 1010 710 L 1010 -10 Z'
+interface VesselLayers {
+  track: L.Polyline
+  crumbs: L.CircleMarker[]
+  leader: L.Polyline
+  mark: L.Marker
+}
 
 export function TacticalMap({ elapsed, idle, highlightId }: { elapsed: number; idle: boolean; highlightId: string | null }) {
-  const svgRef = useRef<SVGSVGElement>(null)
-  const [cursor, setCursor] = useState<Pt | null>(null)
-  const detP = stageP(elapsed, T_DETECT)
-  const btP = stageP(elapsed, T_BACKTRACK)
-  const atP = stageP(elapsed, T_ATTRIBUTE)
+  const boxRef = useRef<HTMLDivElement>(null)
+  const mapRef = useRef<L.Map | null>(null)
+  const layRef = useRef<Partial<FixedLayers>>({})
+  const vesRef = useRef<VesselLayers[]>([])
+  const [cursor, setCursor] = useState<LL | null>(null)
 
-  const slickLen = polyLen(SLICK)
-  const driftLen = polyLen(DRIFT_PATH)
-  const slickC: Pt = [505, 398]
+  /* ---------- create map + all layers once ---------- */
+  useEffect(() => {
+    if (!boxRef.current || mapRef.current) return
+    const map = L.map(boxRef.current, {
+      center: [13.0, 71.3],
+      zoom: 7,
+      minZoom: 6,
+      maxZoom: 8,
+      maxBounds: L.latLngBounds([7.9, 64.9], [18.1, 76.1]),
+      maxBoundsViscosity: 0.9,
+      zoomControl: false,
+      attributionControl: false,
+    })
+    L.tileLayer('tiles/{z}/{x}_{y}.png', {
+      minZoom: 6,
+      maxZoom: 8,
+      errorTileUrl: 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==',
+    }).addTo(map)
+    L.control.attribution({ position: 'bottomright', prefix: false })
+      .addAttribution('&copy; OpenStreetMap contributors &copy; CARTO')
+      .addTo(map)
+    L.control.scale({ imperial: false, position: 'bottomleft' }).addTo(map)
+    map.on('mousemove', (e: L.LeafletMouseEvent) => setCursor([e.latlng.lat, e.latlng.lng]))
+    map.on('mouseout', () => setCursor(null))
+    mapRef.current = map
 
-  const sweepOpacity = idle ? 0.25 : detP < 1 ? 0.9 : 0.35
+    const slickLL = SLICK.map(ptToLL)
+    const driftLL = DRIFT_PATH.map(ptToLL)
+    const originLL = ptToLL(ORIGIN)
+    const slickC = alongLL(slickLL, 0.5)
+
+    /* stage 1 · detect */
+    const slick = L.polygon(slickLL, {
+      className: 'flow', color: '#ff5964', weight: 2,
+      fillColor: '#123a44', fillOpacity: 0, opacity: 0,
+    }).addTo(map)
+    const slickTip = L.circle(slickC, { radius: 1200, color: '#ff5964', weight: 1.2, fill: false, opacity: 0 })
+      .bindTooltip('OIL SLICK · 14.7 KM² · CONF 0.87', { permanent: true, direction: 'right', className: 'tag tag-red', offset: [10, 0] })
+      .addTo(map)
+
+    /* stage 2 · backtrack */
+    const drift = L.polyline(driftLL, {
+      className: 'flow', color: '#ffb454', weight: 2.4, opacity: 0, dashArray: '7 6',
+    }).addTo(map)
+    const tracers = Array.from({ length: 7 }, () =>
+      L.circleMarker(driftLL[0], { radius: 3, color: '#ffb454', fillColor: '#ffb454', fillOpacity: 1, opacity: 0, weight: 0 }).addTo(map),
+    )
+    const originDot = L.marker(originLL, {
+      icon: L.divIcon({ className: '', html: '<div class="origin-dot"><span></span></div>', iconSize: [12, 12], iconAnchor: [6, 6] }),
+      opacity: 0,
+    }).addTo(map)
+    const uncertain = L.circle(originLL, {
+      radius: 14000, color: '#ffb454', weight: 1.2, dashArray: '6 5',
+      fillColor: '#ffb454', fillOpacity: 0.05, opacity: 0,
+    }).addTo(map)
+    const ring25 = L.circle(originLL, { radius: 25000, color: '#ffb454', weight: 0.8, dashArray: '3 7', fill: false, opacity: 0 }).addTo(map)
+    const ring50 = L.circle(originLL, { radius: 50000, color: '#ffb454', weight: 0.8, dashArray: '3 7', fill: false, opacity: 0 }).addTo(map)
+    const originTip = L.marker(originLL, { opacity: 0 })
+      .bindTooltip(`EST. ORIGIN OF SPILL<br>${fmtLL(originLL)} · ±14 KM<br>SLICK AGE ≈ 9 H`, { permanent: true, direction: 'left', className: 'tag tag-amber', offset: [-12, 0] })
+      .addTo(map)
+
+    /* stage 3 · attribute */
+    const vessels: VesselLayers[] = VESSELS.map((v, i) => {
+      const trackLL = v.track.map(ptToLL)
+      const col = TYPE_COLOR[v.type]
+      const crumbs = trackLL.slice(1, -1).map(ll =>
+        L.circleMarker(ll, { radius: 1.7, color: col, fillColor: col, fillOpacity: 0.65, weight: 0, opacity: 0 }).addTo(map),
+      )
+      const mark = L.marker(trackLL[0], {
+        icon: L.divIcon({
+          className: '',
+          html: `<div class="vm ${v.type.toLowerCase()}" style="transform:rotate(${v.headingDeg}deg)">${SHAPE[v.type]}</div>`,
+          iconSize: [14, 14], iconAnchor: [7, 7],
+        }),
+        opacity: 0,
+      })
+        .bindTooltip(`${v.name} · P=${v.score.toFixed(2)}`, { permanent: true, direction: 'bottom', offset: [0, 10], className: `tag ${i === 0 ? 'tag-focus' : 'tag-dim'}` })
+        .addTo(map)
+      return {
+        track: L.polyline(trackLL, { color: col, weight: i === 0 ? 2 : 1.4, opacity: 0 }).addTo(map),
+        crumbs,
+        leader: L.polyline([trackLL[0], trackLL[0]], { color: col, weight: 1.2, dashArray: '2 3', opacity: 0 }).addTo(map),
+        mark,
+      }
+    })
+    const suspectRing = L.marker(VESSELS[0].track.map(ptToLL)[0], {
+      icon: L.divIcon({ className: '', html: '<div class="suspect-ring"></div>', iconSize: [36, 36], iconAnchor: [18, 18] }),
+      opacity: 0,
+    }).addTo(map)
+
+    layRef.current = { slick, slickTip, drift, tracers, originDot, uncertain, ring25, ring50, originTip, suspectRing }
+    vesRef.current = vessels
+
+    return () => {
+      map.remove()
+      mapRef.current = null
+      layRef.current = {}
+      vesRef.current = []
+    }
+  }, [])
+
+  /* ---------- drive every layer from elapsed ---------- */
+  useEffect(() => {
+    const vessels = vesRef.current
+    const {
+      slick, slickTip, drift, tracers, originDot,
+      uncertain, ring25, ring50, originTip, suspectRing,
+    } = layRef.current
+    if (!slick || !slickTip || !drift || !tracers || !originDot ||
+      !uncertain || !ring25 || !ring50 || !originTip || !suspectRing) return
+    const detP = stageP(elapsed, T_DETECT)
+    const btP = stageP(elapsed, T_BACKTRACK)
+    const atP = stageP(elapsed, T_ATTRIBUTE)
+
+    /* stage 1 */
+    slick.setStyle({ fillOpacity: Math.min(0.8, detP * 1.6) * 0.85, opacity: detP > 0 ? 0.95 : 0 })
+    slickTip.setStyle({ opacity: detP > 0.55 ? 0.9 : 0 })
+    if (detP >= 0.75 && !slickTip.isTooltipOpen()) slickTip.openTooltip()
+    if (detP < 0.75 && slickTip.isTooltipOpen()) slickTip.closeTooltip()
+
+    /* stage 2 */
+    const driftLL = DRIFT_PATH.map(ptToLL)
+    drift.setStyle({ opacity: btP > 0 ? 0.9 : 0 })
+    tracers.forEach((c, k) => {
+      const u = (((btP * 1.8 - k * 0.11) % 1) + 1) % 1
+      c.setLatLng(alongLL(driftLL, u))
+      c.setStyle({ opacity: btP > 0 ? Math.max(0.25, 1 - atP) * 0.9 : 0 })
+    })
+    originDot.setOpacity(btP > 0.5 ? 1 : 0)
+    uncertain.setStyle({ opacity: btP > 0.5 ? 0.8 : 0 })
+    const showRings = btP >= 0.92
+    ring25.setStyle({ opacity: showRings ? 0.32 : 0 })
+    ring50.setStyle({ opacity: showRings ? 0.2 : 0 })
+    if (showRings && !originTip.isTooltipOpen()) originTip.openTooltip()
+    if (!showRings && originTip.isTooltipOpen()) originTip.closeTooltip()
+
+    /* stage 3 */
+    VESSELS.forEach((v, i) => {
+      const vl = vessels[i]
+      if (!vl) return
+      const vP = clamp01(atP * 6 - i * 1.05)
+      const focused = highlightId === v.id
+      const dimmed = highlightId !== null && !focused
+      const baseOp = Math.min(1, vP * 1.6) * (dimmed ? 0.14 : focused ? 1 : 0.92)
+      const pos = alongLL(v.track.map(ptToLL), vP)
+
+      vl.track.setStyle({ opacity: baseOp * (i === 0 ? 0.85 : focused ? 1 : 0.5) })
+      vl.crumbs.forEach((c, j) => {
+        c.setStyle({ opacity: vP > (j + 1) / (v.track.length - 1) ? 0.65 * baseOp : 0 })
+      })
+      if (vP > 0.85 && !dimmed) {
+        const rad = (v.headingDeg * Math.PI) / 180
+        const dKm = 14 + v.score * 14
+        const head: LL = [
+          pos[0] + (dKm * Math.cos(rad)) / 111,
+          pos[1] + (dKm * Math.sin(rad)) / (111 * Math.cos((pos[0] * Math.PI) / 180)),
+        ]
+        vl.leader.setLatLngs([pos, head])
+        vl.leader.setStyle({ opacity: 0.8 * baseOp })
+      } else {
+        vl.leader.setStyle({ opacity: 0 })
+      }
+      vl.mark.setLatLng(pos)
+      vl.mark.setOpacity(vP > 0 ? baseOp : 0)
+      vl.mark.setTooltipContent(`${v.name} · P=${v.score.toFixed(2)}${focused ? ' ◂' : ''}`)
+      const wantTip = vP > (focused ? 0.4 : 0.75) && baseOp > 0.3
+      if (wantTip && !(i === 0 && !focused && atP <= 0.55)) {
+        if (!vl.mark.isTooltipOpen()) vl.mark.openTooltip()
+      } else if (vl.mark.isTooltipOpen()) {
+        vl.mark.closeTooltip()
+      }
+      if (i === 0) {
+        const showRing = atP > 0.55 && (!highlightId || focused)
+        suspectRing.setLatLng(pos)
+        suspectRing.setOpacity(showRing ? 0.95 : 0)
+      }
+    })
+  }, [elapsed, highlightId])
 
   return (
-    <svg
-      ref={svgRef}
-      viewBox="0 0 1000 700"
-      preserveAspectRatio="xMidYMid meet"
-      onMouseMove={e => {
-        const svg = svgRef.current
-        const ctm = svg?.getScreenCTM()
-        if (!svg || !ctm) return
-        const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(ctm.inverse())
-        setCursor([p.x, p.y])
-      }}
-      onMouseLeave={() => setCursor(null)}
-    >
-      <defs>
-        <linearGradient id="ocean" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#07202e" />
-          <stop offset="0.5" stopColor="#051824" />
-          <stop offset="1" stopColor="#03101b" />
-        </linearGradient>
-        <linearGradient id="land" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#0d2a33" />
-          <stop offset="1" stopColor="#082028" />
-        </linearGradient>
-        <radialGradient id="slickfill" cx="0.5" cy="0.5" r="0.65">
-          <stop offset="0" stopColor="#123a44" />
-          <stop offset="0.6" stopColor="#0c2b36" />
-          <stop offset="1" stopColor="#081f2a" stopOpacity="0.4" />
-        </radialGradient>
-        <linearGradient id="sweepgrad" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0" stopColor="#35e0c8" stopOpacity="0.35" />
-          <stop offset="1" stopColor="#35e0c8" stopOpacity="0" />
-        </linearGradient>
-      </defs>
-
-      {/* ocean */}
-      <rect width="1000" height="700" fill="url(#ocean)" />
-
-      {/* graticule */}
-      {[134, 228, 322, 416, 510, 604, 698, 792, 886].map(x => (
-        <line key={x} x1={x} y1={0} x2={x} y2={700} stroke="#123648" strokeWidth={0.5} opacity={0.35} />
-      ))}
-      {[114, 193, 271, 350, 428, 507, 585, 664].map(y => (
-        <line key={y} x1={0} y1={y} x2={1000} y2={y} stroke="#123648" strokeWidth={0.5} opacity={0.35} />
-      ))}
-      {[['68°E', 134], ['70°E', 322], ['72°E', 510], ['74°E', 698], ['76°E', 886]].map(([l, x]) => (
-        <text key={l as string} x={(x as number) + 4} y={700 - 6} fontSize={9} className="svg-label" opacity={0.8}>{l}</text>
-      ))}
-      {[['16°N', 114], ['14°N', 271], ['12°N', 428], ['10°N', 585]].map(([l, y]) => (
-        <text key={l as string} x={6} y={(y as number) - 5} fontSize={9} className="svg-label" opacity={0.8}>{l}</text>
-      ))}
-
-      {/* depth contours */}
-      <path d="M 690 -10 C 700 120 680 260 700 380 C 715 470 700 580 720 710" fill="none" stroke="#1b4a5e" strokeWidth={1} strokeDasharray="2 6" opacity={0.5} />
-      <path d="M 600 -10 C 610 140 585 280 605 400 C 618 480 605 590 620 710" fill="none" stroke="#1b4a5e" strokeWidth={1} strokeDasharray="2 6" opacity={0.35} />
-      <path d="M 505 -10 C 512 170 486 320 500 450 C 508 540 498 620 505 710" fill="none" stroke="#1b4a5e" strokeWidth={1} strokeDasharray="2 6" opacity={0.22} />
-      <text x={706} y={148} fontSize={8} className="svg-label" opacity={0.55}>200 m</text>
-      <text x={612} y={210} fontSize={8} className="svg-label" opacity={0.45}>1 000 m</text>
-
-      {/* India west coast landmass */}
-      <path d={LAND} fill="url(#land)" stroke="#2b6a63" strokeWidth={1.2} />
-      {[[763, 240, 'KARWAR'], [789, 356, 'MANGALORE'], [881, 612, 'KOCHI']].map(([x, y, n]) => (
-        <g key={n as string}>
-          <circle cx={x as number} cy={y as number} r={2.2} fill="#35e0c8" opacity={0.85} />
-          <text x={(x as number) + 7} y={(y as number) + 3.5} fontSize={9} className="svg-label" letterSpacing={1.5}>{n}</text>
-        </g>
-      ))}
-
-      {/* Lakshadweep */}
-      <circle cx={155} cy={572} r={2} fill="#2b6a63" />
-      <circle cx={186} cy={606} r={2} fill="#2b6a63" />
-      <text x={198} y={610} fontSize={8.5} className="svg-label" opacity={0.7}>LAKSHADWEEP</text>
-      <text x={250} y={190} fontSize={26} className="svg-disp" fill="#123648" letterSpacing={14} fontWeight={700} opacity={0.5}>ARABIAN SEA</text>
-
-      {/* radar sweep */}
-      <g className="sweep" style={{ transformOrigin: '500px 350px', opacity: sweepOpacity }}>
-        <path d="M 500 350 L 500 105 A 245 245 0 0 1 662 152 Z" fill="url(#sweepgrad)" />
-        <line x1={500} y1={350} x2={500} y2={105} stroke="#35e0c8" strokeWidth={1} opacity={0.5} />
-      </g>
-      <circle cx={500} cy={350} r={245} fill="none" stroke="#123648" strokeWidth={0.7} opacity={0.5} />
-
-      {/* ===== STAGE 1 · DETECT ===== */}
-      {detP > 0 && (
-        <g>
-          <polygon
-            points={SLICK.map(p => p.join(',')).join(' ')}
-            fill="url(#slickfill)"
-            opacity={Math.min(0.95, detP * 2)}
-          />
-          <polygon
-            points={SLICK.map(p => p.join(',')).join(' ')}
-            fill="none"
-            stroke="#ff5964"
-            strokeWidth={2}
-            strokeDasharray={slickLen}
-            strokeDashoffset={slickLen * (1 - detP)}
-            opacity={0.95}
-          />
-          {detP > 0.5 && (
-            <g stroke="#ff5964" opacity={0.9}>
-              <circle cx={slickC[0]} cy={slickC[1]} r={30} fill="none" />
-              <line x1={slickC[0] - 44} y1={slickC[1]} x2={slickC[0] - 18} y2={slickC[1]} />
-              <line x1={slickC[0] + 18} y1={slickC[1]} x2={slickC[0] + 44} y2={slickC[1]} />
-              <line x1={slickC[0]} y1={slickC[1] - 44} x2={slickC[0]} y2={slickC[1] - 18} />
-              <line x1={slickC[0]} y1={slickC[1] + 18} x2={slickC[0]} y2={slickC[1] + 44} />
-            </g>
-          )}
-          {detP >= 0.9 && (
-            <Tag x={618} y={330} color="#ff5964" lines={['OIL SLICK DETECTED', 'AREA 14.7 KM² · CONF 0.87', SLICK_LABEL]} />
-          )}
-        </g>
-      )}
-
-      {/* ===== STAGE 2 · BACKTRACK ===== */}
-      {btP > 0 && (
-        <g>
-          <path
-            d={toPath(DRIFT_PATH)}
-            fill="none"
-            stroke="#ffb454"
-            strokeWidth={2.2}
-            strokeDasharray={`${driftLen} ${driftLen}`}
-            strokeDashoffset={driftLen * (1 - btP)}
-            opacity={0.9}
-            className="dash-flow"
-          />
-          {/* tracer particles */}
-          {Array.from({ length: 7 }, (_, k) => {
-            const p = pointAlong(DRIFT_PATH, btP * 1.8 - k * 0.11)
-            const op = Math.max(0.25, 1 - atP) * 0.9
-            return <circle key={k} cx={p[0]} cy={p[1]} r={2.6} fill="#ffb454" opacity={op} />
-          })}
-          {btP > 0.5 && (
-            <g>
-              <ellipse
-                cx={ORIGIN[0]} cy={ORIGIN[1]} rx={48} ry={22}
-                transform={`rotate(38 ${ORIGIN[0]} ${ORIGIN[1]})`}
-                fill="rgba(255,180,84,.07)" stroke="#ffb454" strokeWidth={1.2}
-                strokeDasharray="7 5" className="ell-spin"
-              />
-              <circle cx={ORIGIN[0]} cy={ORIGIN[1]} r={4.5} fill="#ffb454" />
-              <circle cx={ORIGIN[0]} cy={ORIGIN[1]} r={10} fill="none" stroke="#ffb454" strokeWidth={1.6} className="ping" />
-              {btP >= 0.92 && (
-                <g opacity={0.85}>
-                  <circle cx={ORIGIN[0]} cy={ORIGIN[1]} r={54} fill="none" stroke="#ffb454" strokeWidth={0.8} strokeDasharray="3 7" opacity={0.35} />
-                  <circle cx={ORIGIN[0]} cy={ORIGIN[1]} r={107} fill="none" stroke="#ffb454" strokeWidth={0.8} strokeDasharray="3 7" opacity={0.22} />
-                  <text x={ORIGIN[0] + 40} y={ORIGIN[1] - 40} fontSize={8} className="svg-label" fill="#ffb454" style={{ fill: '#ffb454' }} opacity={0.6}>25 KM</text>
-                  <text x={ORIGIN[0] + 78} y={ORIGIN[1] - 78} fontSize={8} className="svg-label" fill="#ffb454" style={{ fill: '#ffb454' }} opacity={0.55}>50 KM</text>
-                </g>
-              )}
-              {btP >= 0.92 && (
-                <Tag x={ORIGIN[0] - 96} y={ORIGIN[1] - 74} color="#ffb454"
-                  lines={['EST. ORIGIN OF SPILL', `${ORIGIN_LABEL} · ±14 KM`, 'SLICK AGE ≈ 9 H']} />
-              )}
-            </g>
-          )}
-        </g>
-      )}
-
-      {/* ===== STAGE 3 · ATTRIBUTE ===== */}
-      {atP > 0 && VESSELS.map((v, i) => {
-        const vP = clamp01(atP * 6 - i * 1.05)
-        if (vP <= 0) return null
-        const len = polyLen(v.track)
-        const pos = pointAlong(v.track, vP)
-        const col = TYPE_COLOR[v.type]
-        const primary = i === 0
-        const dimmed = highlightId !== null && highlightId !== v.id
-        const focused = highlightId === v.id
-        const baseOp = Math.min(1, vP * 1.6) * (dimmed ? 0.14 : focused ? 1 : 0.92)
-        const showLabel = vP > (focused ? 0.4 : 0.75)
-        const crumbs = Math.floor(vP * 10)
-        const rad = (v.headingDeg * Math.PI) / 180
-        const leaderLen = 14 + v.score * 14
-        return (
-          <g key={v.id} opacity={baseOp}>
-            <path
-              d={toPath(v.track)} fill="none" stroke={col}
-              strokeWidth={primary || focused ? 2 : 1.4}
-              strokeDasharray={`${len} ${len}`}
-              strokeDashoffset={len * (1 - vP)}
-              opacity={primary ? 0.85 : focused ? 1 : 0.5}
-            />
-            {Array.from({ length: Math.max(0, crumbs - 1) }, (_, j) => {
-              const p = pointAlong(v.track, (j + 1) / 10)
-              return <circle key={j} cx={p[0]} cy={p[1]} r={1.7} fill={col} opacity={0.65} />
-            })}
-            {vP > 0.85 && !dimmed && (
-              <line
-                x1={pos[0]} y1={pos[1]}
-                x2={pos[0] + Math.sin(rad) * leaderLen}
-                y2={pos[1] - Math.cos(rad) * leaderLen}
-                stroke={col} strokeWidth={1.2} strokeDasharray="2 3" opacity={0.8}
-              />
-            )}
-            {primary && atP > 0.55 && (!highlightId || focused) && (
-              <circle cx={pos[0]} cy={pos[1]} r={16} fill="none" stroke="#ff5964" strokeWidth={1.6} strokeDasharray="4 4" className="ell-spin" />
-            )}
-            <g transform={`translate(${pos[0]},${pos[1]}) rotate(${v.headingDeg}) scale(${focused ? 1.25 : 1})`}>
-              <Marker type={v.type} />
-            </g>
-            {showLabel && !(primary && !focused) && (
-              <text x={pos[0]} y={pos[1] + 24} fontSize={9.5} textAnchor="middle" className="svg-label" fill={col} style={{ fill: col }}>
-                {v.name} · P={v.score.toFixed(2)}
-              </text>
-            )}
-          </g>
-        )
-      })}
-      {atP > 0.55 && (!highlightId || highlightId === 'V1') && (
-        <Tag x={620} y={618} color="#ff5964"
-          lines={['★ PRIMARY SUSPECT', 'MT OCEAN GLORY · P=0.92']} />
-      )}
-
-      {/* cursor geo readout */}
-      {cursor && (
-        <text x={992} y={676} fontSize={9.5} textAnchor="end" className="svg-label" opacity={0.9}>
-          ▸ CURSOR {toLatLon(cursor)}
-        </text>
-      )}
-
-      {/* compass */}
-      <g transform="translate(72,86)" opacity={0.8}>
-        <circle r={19} fill="rgba(3,11,19,.6)" stroke="#123648" />
-        <path d="M0,-13 L4,4 L0,1 L-4,4 Z" fill="#35e0c8" />
-        <text y={-25} fontSize={9} textAnchor="middle" className="svg-label">N</text>
-      </g>
-
-      {/* scale bar */}
-      <g transform="translate(46,662)" opacity={0.85}>
-        <line x1={0} y1={0} x2={85} y2={0} stroke="#587f8d" strokeWidth={1.4} />
-        <line x1={0} y1={-4} x2={0} y2={4} stroke="#587f8d" />
-        <line x1={42.5} y1={-3} x2={42.5} y2={3} stroke="#587f8d" />
-        <line x1={85} y1={-4} x2={85} y2={4} stroke="#587f8d" />
-        <text x={0} y={16} fontSize={8.5} className="svg-label">0</text>
-        <text x={42.5} y={16} fontSize={8.5} textAnchor="middle" className="svg-label">50</text>
-        <text x={85} y={16} fontSize={8.5} textAnchor="end" className="svg-label">100 KM</text>
-      </g>
-
-      {/* legend */}
-      <g transform="translate(46,596)">
-        <text y={0} fontSize={9} className="svg-label" letterSpacing={2} opacity={0.9}>CONTACT LEGEND</text>
-        {([['TANKER', 'TANKER'], ['CARGO', 'CARGO'], ['FISHING', 'FISHING']] as const).map(([label, t], i) => (
-          <g key={t} transform={`translate(0,${16 + i * 15})`}>
-            <g fill={TYPE_COLOR[t]}>
-              <Marker type={t} />
-            </g>
-            <text x={14} y={3.5} fontSize={9} className="svg-label">{label}</text>
-          </g>
+    <div className="mapwrap">
+      <div ref={boxRef} className="leaflet-box" />
+      {cursor && <div className="cursor-readout">▸ CURSOR {fmtLL(cursor)}</div>}
+      <div className="map-legend">
+        <div className="ml-title">CONTACT LEGEND</div>
+        {(Object.keys(TYPE_COLOR) as Vessel['type'][]).map(t => (
+          <div key={t} className="ml-row">
+            <span className={`vm ${t.toLowerCase()}`} dangerouslySetInnerHTML={{ __html: SHAPE[t] }} />
+            {t}
+          </div>
         ))}
-      </g>
-
-      <text x={992} y={692} fontSize={8} textAnchor="end" className="svg-label" opacity={0.6} letterSpacing={1.2}>
-        SYNTHETIC DEMO DATASET · NOT FOR OPERATIONAL USE
-      </text>
-
+      </div>
       {idle && (
-        <g opacity={0.9}>
-          <rect x={0} y={296} width={1000} height={110} fill="rgba(3,11,19,.55)" />
-          <text x={500} y={340} fontSize={21} textAnchor="middle" className="svg-disp" fill="#35e0c8" letterSpacing={6} fontWeight={600}>
-            ◉ DEMO READY — PRESS RUN ANALYSIS
-          </text>
-          <text x={500} y={372} fontSize={12.5} textAnchor="middle" className="svg-label" letterSpacing={0.5}>
-            Watch AI find an oil spill from space, trace where it came from, and name the ship responsible.
-          </text>
-        </g>
+        <div className="map-idle">
+          <div className="mi-main">◉ DEMO READY — PRESS RUN ANALYSIS</div>
+          <div className="mi-sub">Watch AI find an oil spill from space, trace where it came from, and name the ship responsible.</div>
+        </div>
       )}
-    </svg>
+    </div>
   )
 }

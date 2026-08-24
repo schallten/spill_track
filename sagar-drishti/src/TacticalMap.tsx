@@ -1,3 +1,4 @@
+import { useRef, useState } from 'react'
 import type { Vessel } from './data'
 import {
   SLICK, DRIFT_PATH, ORIGIN, ORIGIN_LABEL, SLICK_LABEL,
@@ -8,6 +9,13 @@ type Pt = [number, number]
 
 const clamp01 = (u: number) => Math.max(0, Math.min(1, u))
 const stageP = (ms: number, [a, b]: [number, number]) => clamp01((ms - a) / (b - a))
+
+/** map coords -> geo coords (matches graticule: x 40..980 = 67..77°E, y 36..664 = 17..9°N) */
+function toLatLon([x, y]: Pt): string {
+  const lon = 67 + ((x - 40) / 940) * 10
+  const lat = 17 - ((y - 36) / 628) * 8
+  return `${lat.toFixed(2)}°N ${lon.toFixed(2)}°E`
+}
 
 function polyLen(pts: Pt[]): number {
   let L = 0
@@ -52,17 +60,15 @@ interface TagProps {
   y: number
   color: string
   lines: string[]
-  anchor?: 'start' | 'middle'
 }
-function Tag({ x, y, color, lines, anchor = 'start' }: TagProps) {
+function Tag({ x, y, color, lines }: TagProps) {
   const w = Math.max(...lines.map(l => l.length)) * 6.6 + 16
   const h = lines.length * 15 + 10
-  const bx = anchor === 'start' ? x : x - w / 2
   return (
     <g>
-      <rect x={bx} y={y} width={w} height={h} fill="rgba(3,11,19,.88)" stroke={color} strokeWidth={1} />
+      <rect x={x} y={y} width={w} height={h} fill="rgba(3,11,19,.88)" stroke={color} strokeWidth={1} />
       {lines.map((l, i) => (
-        <text key={i} x={bx + 8} y={y + 17 + i * 15} fontSize={11} fill={color} className="svg-label" style={{ fill: color }}>
+        <text key={i} x={x + 8} y={y + 17 + i * 15} fontSize={11} fill={color} className="svg-label" style={{ fill: color }}>
           {l}
         </text>
       ))}
@@ -74,7 +80,9 @@ const LAND =
   'M 700 -10 L 716 52 C 736 118 742 158 758 208 C 774 262 768 300 786 350 ' +
   'C 804 404 818 430 836 480 C 856 534 852 570 878 620 L 898 710 L 1010 710 L 1010 -10 Z'
 
-export function TacticalMap({ elapsed, idle }: { elapsed: number; idle: boolean }) {
+export function TacticalMap({ elapsed, idle, highlightId }: { elapsed: number; idle: boolean; highlightId: string | null }) {
+  const svgRef = useRef<SVGSVGElement>(null)
+  const [cursor, setCursor] = useState<Pt | null>(null)
   const detP = stageP(elapsed, T_DETECT)
   const btP = stageP(elapsed, T_BACKTRACK)
   const atP = stageP(elapsed, T_ATTRIBUTE)
@@ -83,10 +91,22 @@ export function TacticalMap({ elapsed, idle }: { elapsed: number; idle: boolean 
   const driftLen = polyLen(DRIFT_PATH)
   const slickC: Pt = [505, 398]
 
-  const sweepOpacity = idle ? 0.35 : detP < 1 ? 0.95 : 0.4
+  const sweepOpacity = idle ? 0.25 : detP < 1 ? 0.9 : 0.35
 
   return (
-    <svg viewBox="0 0 1000 700" preserveAspectRatio="xMidYMid meet">
+    <svg
+      ref={svgRef}
+      viewBox="0 0 1000 700"
+      preserveAspectRatio="xMidYMid meet"
+      onMouseMove={e => {
+        const svg = svgRef.current
+        const ctm = svg?.getScreenCTM()
+        if (!svg || !ctm) return
+        const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(ctm.inverse())
+        setCursor([p.x, p.y])
+      }}
+      onMouseLeave={() => setCursor(null)}
+    >
       <defs>
         <linearGradient id="ocean" x1="0" y1="0" x2="1" y2="1">
           <stop offset="0" stopColor="#07202e" />
@@ -216,6 +236,14 @@ export function TacticalMap({ elapsed, idle }: { elapsed: number; idle: boolean 
               <circle cx={ORIGIN[0]} cy={ORIGIN[1]} r={4.5} fill="#ffb454" />
               <circle cx={ORIGIN[0]} cy={ORIGIN[1]} r={10} fill="none" stroke="#ffb454" strokeWidth={1.6} className="ping" />
               {btP >= 0.92 && (
+                <g opacity={0.85}>
+                  <circle cx={ORIGIN[0]} cy={ORIGIN[1]} r={54} fill="none" stroke="#ffb454" strokeWidth={0.8} strokeDasharray="3 7" opacity={0.35} />
+                  <circle cx={ORIGIN[0]} cy={ORIGIN[1]} r={107} fill="none" stroke="#ffb454" strokeWidth={0.8} strokeDasharray="3 7" opacity={0.22} />
+                  <text x={ORIGIN[0] + 40} y={ORIGIN[1] - 40} fontSize={8} className="svg-label" fill="#ffb454" style={{ fill: '#ffb454' }} opacity={0.6}>25 KM</text>
+                  <text x={ORIGIN[0] + 78} y={ORIGIN[1] - 78} fontSize={8} className="svg-label" fill="#ffb454" style={{ fill: '#ffb454' }} opacity={0.55}>50 KM</text>
+                </g>
+              )}
+              {btP >= 0.92 && (
                 <Tag x={ORIGIN[0] - 96} y={ORIGIN[1] - 74} color="#ffb454"
                   lines={['EST. ORIGIN OF SPILL', `${ORIGIN_LABEL} · ±14 KM`, 'SLICK AGE ≈ 9 H']} />
               )}
@@ -232,33 +260,58 @@ export function TacticalMap({ elapsed, idle }: { elapsed: number; idle: boolean 
         const pos = pointAlong(v.track, vP)
         const col = TYPE_COLOR[v.type]
         const primary = i === 0
-        const showLabel = vP > 0.75
+        const dimmed = highlightId !== null && highlightId !== v.id
+        const focused = highlightId === v.id
+        const baseOp = Math.min(1, vP * 1.6) * (dimmed ? 0.14 : focused ? 1 : 0.92)
+        const showLabel = vP > (focused ? 0.4 : 0.75)
+        const crumbs = Math.floor(vP * 10)
+        const rad = (v.headingDeg * Math.PI) / 180
+        const leaderLen = 14 + v.score * 14
         return (
-          <g key={v.id} opacity={Math.min(1, vP * 1.6)}>
+          <g key={v.id} opacity={baseOp}>
             <path
               d={toPath(v.track)} fill="none" stroke={col}
-              strokeWidth={primary ? 2 : 1.4}
+              strokeWidth={primary || focused ? 2 : 1.4}
               strokeDasharray={`${len} ${len}`}
               strokeDashoffset={len * (1 - vP)}
-              opacity={primary ? 0.85 : 0.5}
+              opacity={primary ? 0.85 : focused ? 1 : 0.5}
             />
-            {primary && atP > 0.55 && (
+            {Array.from({ length: Math.max(0, crumbs - 1) }, (_, j) => {
+              const p = pointAlong(v.track, (j + 1) / 10)
+              return <circle key={j} cx={p[0]} cy={p[1]} r={1.7} fill={col} opacity={0.65} />
+            })}
+            {vP > 0.85 && !dimmed && (
+              <line
+                x1={pos[0]} y1={pos[1]}
+                x2={pos[0] + Math.sin(rad) * leaderLen}
+                y2={pos[1] - Math.cos(rad) * leaderLen}
+                stroke={col} strokeWidth={1.2} strokeDasharray="2 3" opacity={0.8}
+              />
+            )}
+            {primary && atP > 0.55 && (!highlightId || focused) && (
               <circle cx={pos[0]} cy={pos[1]} r={16} fill="none" stroke="#ff5964" strokeWidth={1.6} strokeDasharray="4 4" className="ell-spin" />
             )}
-            <g transform={`translate(${pos[0]},${pos[1]}) rotate(${v.headingDeg})`}>
+            <g transform={`translate(${pos[0]},${pos[1]}) rotate(${v.headingDeg}) scale(${focused ? 1.25 : 1})`}>
               <Marker type={v.type} />
             </g>
-            {showLabel && !primary && (
-              <text x={pos[0]} y={pos[1] + 22} fontSize={9.5} textAnchor="middle" className="svg-label" fill={col} style={{ fill: col }}>
+            {showLabel && !(primary && !focused) && (
+              <text x={pos[0]} y={pos[1] + 24} fontSize={9.5} textAnchor="middle" className="svg-label" fill={col} style={{ fill: col }}>
                 {v.name} · P={v.score.toFixed(2)}
               </text>
             )}
           </g>
         )
       })}
-      {atP > 0.55 && (
+      {atP > 0.55 && (!highlightId || highlightId === 'V1') && (
         <Tag x={620} y={618} color="#ff5964"
           lines={['★ PRIMARY SUSPECT', 'MT OCEAN GLORY · P=0.92']} />
+      )}
+
+      {/* cursor geo readout */}
+      {cursor && (
+        <text x={992} y={676} fontSize={9.5} textAnchor="end" className="svg-label" opacity={0.9}>
+          ▸ CURSOR {toLatLon(cursor)}
+        </text>
       )}
 
       {/* compass */}
@@ -300,10 +353,10 @@ export function TacticalMap({ elapsed, idle }: { elapsed: number; idle: boolean 
         <g opacity={0.9}>
           <rect x={0} y={296} width={1000} height={110} fill="rgba(3,11,19,.55)" />
           <text x={500} y={340} fontSize={21} textAnchor="middle" className="svg-disp" fill="#35e0c8" letterSpacing={6} fontWeight={600}>
-            ◉ NO ACTIVE SCENE — AWAITING TASKING
+            ◉ DEMO READY — PRESS RUN ANALYSIS
           </text>
-          <text x={500} y={372} fontSize={12} textAnchor="middle" className="svg-label" letterSpacing={3}>
-            PRESS RUN ANALYSIS TO START THE DETECT → BACKTRACK → ATTRIBUTE PIPELINE
+          <text x={500} y={372} fontSize={12.5} textAnchor="middle" className="svg-label" letterSpacing={0.5}>
+            Watch AI find an oil spill from space, trace where it came from, and name the ship responsible.
           </text>
         </g>
       )}

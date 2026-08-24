@@ -1,4 +1,13 @@
 export type VesselType = 'TANKER' | 'CARGO' | 'FISHING'
+export type FactorKey = 'prox' | 'traj' | 'spd' | 'typ' | 'hist'
+
+export const FACTOR_META: { k: FactorKey; w: number }[] = [
+  { k: 'prox', w: 0.3 },
+  { k: 'traj', w: 0.25 },
+  { k: 'spd', w: 0.2 },
+  { k: 'typ', w: 0.15 },
+  { k: 'hist', w: 0.1 },
+]
 
 export interface Vessel {
   id: string
@@ -7,6 +16,7 @@ export interface Vessel {
   flag: string
   imo: string
   score: number
+  factors: Record<FactorKey, number>
   track: [number, number][]
   headingDeg: number
   reasons: string[]
@@ -36,6 +46,7 @@ export const SLICK_LABEL = '12.39°N · 71.95°E'
 export const VESSELS: Vessel[] = [
   {
     id: 'V1',
+    factors: { prox: 0.28, traj: 0.23, spd: 0.18, typ: 0.14, hist: 0.09 },
     name: 'MT OCEAN GLORY',
     type: 'TANKER',
     flag: 'PA · LIBERIA',
@@ -56,6 +67,7 @@ export const VESSELS: Vessel[] = [
   },
   {
     id: 'V2',
+    factors: { prox: 0.21, traj: 0.17, spd: 0.14, typ: 0.13, hist: 0.09 },
     name: 'MT SEA ANGEL',
     type: 'TANKER',
     flag: 'MV · PANAMA',
@@ -74,6 +86,7 @@ export const VESSELS: Vessel[] = [
   },
   {
     id: 'V3',
+    factors: { prox: 0.13, traj: 0.1, spd: 0.06, typ: 0.07, hist: 0.05 },
     name: 'MV KOCHI EXPRESS',
     type: 'CARGO',
     flag: 'IN · KOCHI',
@@ -91,6 +104,7 @@ export const VESSELS: Vessel[] = [
   },
   {
     id: 'V4',
+    factors: { prox: 0.04, traj: 0.04, spd: 0.03, typ: 0.04, hist: 0.03 },
     name: 'FV NEENDAKARA-7',
     type: 'FISHING',
     flag: 'IN · NEENDAKARA',
@@ -133,5 +147,22 @@ export const LOG_SCRIPT: LogLine[] = [
   { t: 11_100, level: 'info', text: 'CONTACT  MV KOCHI EXPRESS · P=0.41 — low likelihood' },
   { t: 11_900, level: 'info', text: 'CONTACT  FV NEENDAKARA-7 · P=0.18 — ruled unlikely' },
   { t: 12_500, level: 'ok', text: 'DOSSIER  attribution complete · top-3 hit rate 80% (validated)' },
-  { t: 12_900, level: 'ok', text: 'PIPELINE COMPLETE — review suspect panel →' },
+  { t: 12_900, level: 'ok', text: 'PIPELINE COMPLETE — review suspect panel →' }
+]
+
+/** Plain-English narration shown as captions over the map */
+export interface Narration {
+  t: number
+  step: string
+  text: string
+}
+
+export const NARRATION: Narration[] = [
+  { t: 400, step: 'STEP 1 / 3 · FIND', text: 'A satellite radar image arrives. Our AI scans it for dark, oily patches on the sea.' },
+  { t: 2_400, step: 'STEP 1 / 3 · FOUND', text: 'Oil slick confirmed — 14.7 km², outlined in red, detected with 87% confidence.' },
+  { t: 4_000, step: 'STEP 2 / 3 · REWIND', text: 'Wind and ocean-current records are played backwards to see where the oil came from…' },
+  { t: 6_300, step: 'STEP 2 / 3 · SOURCE', text: 'The trail leads back to an origin point — pinned within ±14 km, about 9 hours ago.' },
+  { t: 8_200, step: 'STEP 3 / 3 · SHIPS', text: 'Every ship that passed near that point in that time window is pulled from tracking data.' },
+  { t: 9_500, step: 'STEP 3 / 3 · VERDICT', text: 'Course, speed and ship type are scored — MT OCEAN GLORY tops the list at 92% likelihood.' },
+  { t: 12_300, step: 'COMPLETE', text: 'Done in seconds instead of months. Investigators get a ready-made evidence package.' },
 ]

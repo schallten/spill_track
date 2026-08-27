@@ -6,7 +6,7 @@ dashboard that visually simulates the full pipeline from the technical guide:
 **Detect → Backtrack → Attribute** (oil spill detection → origin tracing → vessel ranking).
 
 ## Project Setup
-- Location: `/home/ribo/Documents/college/sih/sagar-drishti/`
+- Location: `/home/ribo/Documents/college/sih/spill-track/`
 - Stack: **React + TypeScript + Vite**, package manager: **bun**
 - NO external map libs (Leaflet etc.) — the tactical map is a hand-built SVG so it works fully OFFLINE during judging
 - Fonts: Google Fonts (Chakra Petch + IBM Plex Mono) with monospace fallbacks
@@ -26,7 +26,7 @@ Old blocked build deleted; project re-scaffolded and `bun install` succeeded cle
 
 ## How to run
 ```
-cd sagar-drishti && bun run dev     # dev server (currently running on :5199)
+cd spill-track && bun run dev     # dev server (currently running on :5199)
 bun run build                       # tsc + vite build — passes clean
 ```
 Demo flow for judges: press **RUN ANALYSIS**, narrate stages as they light up (~13 s).

@@ -1,7 +1,8 @@
 const OUR_MS = 13
+const OUR_MS_EXACT = '13.2 s' /* demo pipeline replay: TOTAL_MS = 13 200 ms */
 
 const KPIS: { k: string; manual: string; ours: string; unit: string; ratio: string }[] = [
-  { k: 'Time to first viable suspect', manual: '40–80 days', ours: `${OUR_MS} seconds`, unit: 'PER INCIDENT', ratio: '>250,000×' },
+  { k: 'Time to first viable suspect', manual: '40–80 days', ours: `~${OUR_MS}s demo run`, unit: 'PER INCIDENT', ratio: '>250,000×' },
   { k: 'Analyst effort', manual: 'Multi-week', ours: '~2 min review', unit: 'PER INCIDENT', ratio: 'Automatic' },
   { k: 'Data sources fused', manual: '1–2 (charts)', ours: '5 (SAR·AIS·ENC·wind·current)', unit: 'PER ANALYSIS', ratio: '2.5×' },
   { k: 'Suspect coverage', manual: 'Limited manual sample', ours: 'All vessels in corridor · 100%', unit: 'OF TRAFFIC', ratio: 'Full' },
@@ -9,21 +10,20 @@ const KPIS: { k: string; manual: string; ours: string; unit: string; ratio: stri
   { k: 'Cost per incident', manual: 'High (field + analysts)', ours: 'Low (automated, review-only)', unit: 'ESTIMATE', ratio: 'Lower' },
 ]
 
-const ROW = (m: string, o: string, u: string) => ({ manual: m, ours: o, unit: u })
+/* phase durations taken from the actual demo timeline in data.ts
+   (T_TOTAL = 13 200 ms): detect 3.6 s · backtrack 4.2 s · attribute 5.0 s */
+const PHASE = [
+  { name: 'SAR slick detected + vectorised (U-Net)', t: '3.6 s' },
+  { name: 'Origin back-tracked via wind/current', t: '4.2 s' },
+  { name: 'AIS correlation + weighted scoring', t: '5.0 s' },
+]
 
-const BREAKDOWN = {
-  manual: [
-    ROW('Ship movement charts requested & digitised', 'Weeks', 'PHASE'),
-    ROW('Drift modelled by meteorology specialists', 'Days–weeks', 'PHASE'),
-    ROW('Vessel lists shortlisted by human judgement', 'Days', 'PHASE'),
-    ROW('Cross-checks against records / manifests', 'Weeks', 'PHASE'),
-  ],
-  ours: [
-    ROW('SAR slick detected + vectorised (U-Net)', '6 s', 'PHASE'),
-    ROW('Back-track origin via wind/current', '3 s', 'PHASE'),
-    ROW('AIS correlation + weighted scoring', '4 s', 'PHASE'),
-  ],
-}
+const MANUAL = [
+  { name: 'Ship movement charts requested & digitised', t: 'Weeks' },
+  { name: 'Drift modelled by meteorology specialists', t: 'Days–weeks' },
+  { name: 'Vessel lists shortlisted by human judgement', t: 'Days' },
+  { name: 'Cross-checks against records / manifests', t: 'Weeks' },
+]
 
 export function Impact({ onClose }: { onClose: () => void }) {
   return (
@@ -40,7 +40,7 @@ export function Impact({ onClose }: { onClose: () => void }) {
           <div className="im-big">
             <span className="im-days">40–80 DAYS</span>
             <span className="im-arrow">→</span>
-            <span className="im-sec">13 SECONDS</span>
+            <span className="im-sec">~13 SECONDS</span>
           </div>
           <div className="im-tag">TO A CANDIDATE RESPONSIBLE VESSEL</div>
         </div>
@@ -49,10 +49,10 @@ export function Impact({ onClose }: { onClose: () => void }) {
           <div className="im-col dst">
             <div className="im-colh">CONVENTIONAL METHOD</div>
             <div className="im-phase">
-              {BREAKDOWN.manual.map(r => (
-                <div className="im-row" key={r.manual}>
-                  <span className="im-rowk">{r.manual}</span>
-                  <em className="im-rowv">{r.ours}</em>
+              {MANUAL.map(r => (
+                <div className="im-row" key={r.name}>
+                  <span className="im-rowk">{r.name}</span>
+                  <em className="im-rowv">{r.t}</em>
                 </div>
               ))}
             </div>
@@ -62,14 +62,14 @@ export function Impact({ onClose }: { onClose: () => void }) {
           <div className="im-col ours">
             <div className="im-colh">SPILL TRACK PIPELINE</div>
             <div className="im-phase">
-              {BREAKDOWN.ours.map(r => (
-                <div className="im-row" key={r.manual}>
-                  <span className="im-rowk">{r.manual}</span>
-                  <em className="im-rowv">{r.ours}</em>
+              {PHASE.map(r => (
+                <div className="im-row" key={r.name}>
+                  <span className="im-rowk">{r.name}</span>
+                  <em className="im-rowv">{r.t}</em>
                 </div>
               ))}
             </div>
-            <div className="im-verdict good">ONE-TAP · 3 STAGES · 13 s</div>
+            <div className="im-verdict good">ONE-TAP · 3 STAGES · ~13 s</div>
           </div>
         </div>
 
@@ -93,6 +93,11 @@ export function Impact({ onClose }: { onClose: () => void }) {
           <b>WHY IT MATTERS.</b> Faster attribution lets agencies stop further harm sooner, direct
           clean-up immediately, shorten insurer / legal dispute time, and deter illegal discharges —
           because responsibility becomes near-instant to establish rather than a months-long open question.
+        </div>
+
+        <div className="im-foot">
+          Pipeline figure is the live in-app run ({OUR_MS_EXACT}); sources and phase durations from the
+          demo timeline. Conventional method figures are representative published/field estimates.
         </div>
       </div>
     </div>

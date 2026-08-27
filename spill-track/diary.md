@@ -38,6 +38,9 @@ This lifts Innovation (20%), Technical Approach (20%) and Prototype/Demo (20%).
 ### Backlog (higher priority, not started)
 - [x] Impact demo: side-by-side "13 s pipeline vs 40–80 day manual method" with cost/error KPIs
       (added ƒ IMPACT modal — days→13 s headline, phased breakdown, 6-row KPI table, why-it-matters note)
+      · claim made accurate: ~13 s figure + phase durations (3.6 / 4.2 / 5.0 s) taken from the live demo
+        timeline (TOTAL_MS = 13 200 ms), labelled as the in-app demo run, with a footnote clarifying
+        convention-side figures are representative estimates
 - [ ] Realism: live clock/sensor readouts; "simulated vs real data" toggle
 - [ ] Q&A readiness: on-screen "Why / How it works" panel + 1-page judge cheat-sheet
 - [ ] Export: CSV / GeoJSON / JSON download of suspect evidence (production-grade feel)

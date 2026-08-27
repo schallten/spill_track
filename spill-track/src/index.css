@@ -1041,6 +1041,10 @@ section p { font-size: 13.5px; line-height: 1.65; margin: 0; text-align: justify
 .im-note { border-left: 3px solid var(--amber); padding: 10px 14px; background: rgba(201,154,74,0.05); }
 .im-note b { font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.14em; color: var(--amber); }
 .im-note { font-family: var(--mono); font-size: 10.5px; color: var(--ink-2); line-height: 1.7; }
+.im-foot {
+  margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--hair-soft);
+  font-family: var(--mono); font-size: 8.5px; color: var(--ink-4); line-height: 1.6;
+}
 
 @media (max-width: 860px) {
   .im-cols { grid-template-columns: 1fr; }

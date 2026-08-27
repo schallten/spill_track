@@ -129,7 +129,7 @@ export interface LogLine {
 }
 
 export const LOG_SCRIPT: LogLine[] = [
-  { t: 0, level: 'ok', text: 'SYSTEM ONLINE — SPILL TRACK v2.4 · PSID 26143 · NTRO' },
+  { t: 0, level: 'ok', text: 'SYSTEM READY — SPILL TRACK v2.4 · SIH-26143' },
   { t: 400, level: 'info', text: 'INGEST   Sentinel-1 GRD scene S1A_IW_GRDH_1SDV ·VV+VH· acquired' },
   { t: 800, level: 'info', text: 'PREPROC  radiometric cal → Lee σ° speckle filter → 512² tile' },
   { t: 1_400, level: 'info', text: 'MODEL    U-Net semantic segmentation — inference pass 1/1' },

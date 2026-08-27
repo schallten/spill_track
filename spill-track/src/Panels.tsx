@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { LogLine, Vessel } from './data'
+import type { FactorKey, LogLine, Vessel } from './data'
 import { FACTOR_META, VESSELS } from './data'
 
 /* ---------------- metrics ---------------- */
@@ -45,15 +45,40 @@ export function MetricsPanel({ elapsed }: { elapsed: number }) {
 /* ---------------- suspects ---------------- */
 
 const FACTOR_ALPHA = [0.35, 0.5, 0.65, 0.82, 1]
+const FACTOR_LABEL: Record<FactorKey, string> = { prox: 'Proximity', traj: 'Trajectory', spd: 'Speed anomaly', typ: 'Vessel type', hist: 'Violation history' }
+const DEFAULTS: Record<FactorKey, number> = { prox: 0.3, traj: 0.25, spd: 0.2, typ: 0.15, hist: 0.1 }
 
-function SuspectCard({ v, rank, hovered, onHover }: { v: Vessel; rank: number; hovered: boolean; onHover: (id: string | null) => void }) {
+/* live score: weighted sum of factors, rescaled so V1 = 0.92 at default weights */
+const rawScore = (v: Vessel, w: Record<FactorKey, number>) =>
+  FACTOR_META.reduce((s, m) => s + w[m.k] * v.factors[m.k], 0)
+const rawV1Default = rawScore(VESSELS[0], DEFAULTS)
+const K = 0.92 / rawV1Default
+
+function liveScore(v: Vessel, w: Record<FactorKey, number>) {
+  return Math.max(0, Math.min(1, rawScore(v, w) * K))
+}
+
+/* keep weights summing to 1 by scaling the other factors when one changes */
+const renorm = (w: Record<FactorKey, number>, k: FactorKey, v: number): Record<FactorKey, number> => {
+  const others = (FACTOR_META.filter(m => m.k !== k) as { k: FactorKey }[])
+    .reduce((s, m) => s + w[m.k], 0)
+  const target = 1 - v
+  const scale = others > 0 ? Math.max(0, target) / others : 0
+  const next = { ...w, [k]: v } as Record<FactorKey, number>
+  for (const m of FACTOR_META) {
+    if (m.k !== k) next[m.k] = Math.max(0, w[m.k] * scale)
+  }
+  return next
+}
+
+function SuspectCard({ v, score, rank, hovered, onHover }: { v: Vessel; score: number; rank: number; hovered: boolean; onHover: (id: string | null) => void }) {
   const [w, setW] = useState(0)
   useEffect(() => {
-    const id = requestAnimationFrame(() => setW(v.score))
+    const id = requestAnimationFrame(() => setW(score))
     return () => cancelAnimationFrame(id)
-  }, [v.score])
+  }, [score])
   const primary = rank === 1
-  const pctCol = primary ? '#cf6d6d' : v.score >= 0.7 ? '#c99a4a' : '#76808d'
+  const pctCol = primary ? '#cf6d6d' : score >= 0.7 ? '#c99a4a' : '#76808d'
   const hex = pctCol.replace('#', '')
   const rgba = (a: number) => {
     const n = parseInt(hex, 16)
@@ -86,7 +111,7 @@ function SuspectCard({ v, rank, hovered, onHover }: { v: Vessel; rank: number; h
             <i
               key={m.k}
               style={{ width: `${v.factors[m.k] * 100}%`, background: rgba(FACTOR_ALPHA[i]) }}
-              title={`${v.factors[m.k].toFixed(2)} · weight ${m.w.toFixed(2)}`}
+              title={`${v.factors[m.k].toFixed(2)} · weight ${(FACTOR_META.find(x => x.k === m.k)?.w ?? 0).toFixed(2)}`}
             />
           ))}
         </div>
@@ -99,24 +124,55 @@ function SuspectCard({ v, rank, hovered, onHover }: { v: Vessel; rank: number; h
   )
 }
 
+function WeightSlider({ k, value, onChange }: { k: FactorKey; value: number; onChange: (v: number) => void }) {
+  return (
+    <div className="wrow">
+      <span className="wlbl">{FACTOR_LABEL[k]}</span>
+      <input
+        className="wslider"
+        type="range" min={0} max={0.6} step={0.01}
+        value={value}
+        onChange={e => onChange(Number(e.target.value))}
+      />
+      <span className="wval">{(value * 100).toFixed(0)}</span>
+    </div>
+  )
+}
+
 export function SuspectPanel({ elapsed, hoverId, onHover }: { elapsed: number; hoverId: string | null; onHover: (id: string | null) => void }) {
   const revealed = Math.max(0, Math.min(VESSELS.length, Math.floor((elapsed - 8_900) / 800)))
+  const [weights, setWeights] = useState<Record<FactorKey, number>>({ ...DEFAULTS })
+  const dirty = FACTOR_META.some(m => Math.abs(weights[m.k] - DEFAULTS[m.k]) > 1e-6)
+
+  const ranked = [...VESSELS]
+    .map(v => ({ v, score: liveScore(v, weights) }))
+    .sort((a, b) => b.score - a.score)
+
   return (
     <div className="clip suspects">
       <div className="clip-in">
         <div className="panel-title"><span className="tick">▮</span> ATTRIBUTION — RANKED SUSPECTS</div>
         <div className="panel-body suspects-body" onMouseLeave={() => onHover(null)}>
-          {VESSELS.slice(0, revealed).map((v, i) => (
-            <SuspectCard key={v.id} v={v} rank={i + 1} hovered={hoverId === v.id} onHover={onHover} />
-          ))}
           {revealed === 0 && (
-            <div className="suspect-hint">
-              AWAITING AIS CORRELATION…
-            </div>
+            <div className="suspect-hint">AWAITING AIS CORRELATION…</div>
           )}
+          {ranked.slice(0, revealed).map(({ v, score }, i) => (
+            <SuspectCard key={v.id} v={v} score={score} rank={i + 1} hovered={hoverId === v.id} onHover={onHover} />
+          ))}
+        </div>
+        <div className="weights">
+          <div className="whead">
+            <span>SENSITIVITY — RE-RANK</span>
+            {dirty && <button className="wreset" onClick={() => setWeights({ ...DEFAULTS })}>↺ RESET</button>}
+          </div>
+          <div className="wbody">
+            {FACTOR_META.map(m => (
+              <WeightSlider key={m.k} k={m.k} value={weights[m.k]} onChange={v => setWeights(p => renorm(p, m.k, v))} />
+            ))}
+          </div>
         </div>
         <div className="formula">
-          <b>SCORE =</b> {FACTOR_META.map(m => `${m.w.toFixed(2)}·${m.k}`).join(' + ')}
+          <b>SCORE =</b> {FACTOR_META.map(m => `${weights[m.k].toFixed(2)}·${m.k}`).join(' + ')}
           <span className="hint">HOVER CARD → TRACK</span>
         </div>
       </div>

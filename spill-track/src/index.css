@@ -1,5 +1,5 @@
 /* ============================================================================
-   SPILL TRACK — INTELLIGENCE OPERATING SYSTEM
+   SPILL TRACK — MARITIME MONITORING SYSTEM
    Design language: Palantir-Gotham-inspired OS console.
    - Graphite/navy canvas, hairline borders, monochrome chrome
    - Color reserved for data objects + status (muted, no glow)
@@ -262,7 +262,16 @@ body {
 .rail { grid-area: rail; display: flex; flex-direction: column; gap: 6px; min-height: 0; }
 .rail .clip { flex: 1; }
 
-.stages { display: flex; flex-direction: column; gap: 8px; padding: 10px; flex: 1; justify-content: center; }
+.stages {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  flex: 1;
+  justify-content: center;
+  min-height: 0;
+  overflow-y: auto;
+}
 .stage {
   border: 1px solid var(--hair);
   background: var(--inset);
@@ -326,7 +335,14 @@ body {
 .stage .bar i { display: block; height: 100%; width: 0%; background: var(--amber); transition: width 0.12s linear; }
 .stage.done .bar i { width: 100%; background: var(--green); }
 
-.railctl { padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+.railctl {
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 0 0 auto;
+  border-top: 1px solid var(--hair-soft);
+}
 .runbtn {
   padding: 10px 12px;
   font-family: var(--mono);
@@ -366,6 +382,30 @@ body {
   transition: border-color 0.15s, background 0.15s;
 }
 .reportbtn:hover { background: rgba(207,109,109,0.08); border-color: var(--red); }
+
+/* stage step-through drive */
+.drivectl {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.dlabel {
+  font-family: var(--mono); font-size: 8px; letter-spacing: 0.18em;
+  color: var(--ink-4);
+}
+.dbtns { display: flex; gap: 5px; }
+.dbtn {
+  flex: 1;
+  height: 24px;
+  font-family: var(--mono); font-size: 10px; font-weight: 500;
+  color: var(--ink-3);
+  background: var(--inset);
+  border: 1px solid var(--hair-bright);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+.dbtn:hover { border-color: var(--teal); color: var(--teal); }
+.dbtn.on { border-color: var(--amber); color: var(--amber); background: rgba(201,154,74,0.08); }
 
 /* sources strip in rail */
 .srcbox { flex: 0 0 auto; }
@@ -491,6 +531,42 @@ body {
 .formula { padding: 7px 12px; border-top: 1px solid var(--hair-soft); font-family: var(--mono); font-size: 8.5px; color: var(--ink-4); letter-spacing: 0.04em; line-height: 1.5; }
 .formula b { color: var(--ink-3); font-weight: 500; }
 .formula .hint { float: right; color: var(--ink-4); }
+
+/* live sensitivity / re-rank editor */
+.weights {
+  flex: 0 0 auto;
+  border-top: 1px solid var(--hair-soft);
+  padding: 8px 12px;
+}
+.whead {
+  display: flex; align-items: center; justify-content: space-between;
+  font-family: var(--mono); font-size: 8px; letter-spacing: 0.16em;
+  color: var(--ink-4); margin-bottom: 7px;
+}
+.wreset {
+  font-family: var(--mono); font-size: 8px; letter-spacing: 0.1em;
+  color: var(--teal); background: transparent; border: 1px solid var(--hair-bright);
+  padding: 1px 7px; cursor: pointer;
+}
+.wreset:hover { border-color: var(--teal); }
+.wbody { display: flex; flex-direction: column; gap: 5px; }
+.wrow { display: grid; grid-template-columns: 74px 1fr 24px; align-items: center; gap: 8px; }
+.wlbl { font-family: var(--mono); font-size: 8px; letter-spacing: 0.04em; color: var(--ink-3); }
+.wval { font-family: var(--mono); font-size: 8.5px; color: var(--ink-2); text-align: right; }
+input.wslider {
+  -webkit-appearance: none; appearance: none;
+  height: 2px; background: var(--hair-bright); outline: none;
+  border-radius: 0;
+}
+input.wslider::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 9px; height: 9px; border-radius: 0;
+  background: var(--teal); cursor: pointer; border: none;
+}
+input.wslider::-moz-range-thumb {
+  width: 9px; height: 9px; border-radius: 0;
+  background: var(--teal); cursor: pointer; border: none;
+}
 
 /* ====================== TIMELINE ====================== */
 .tl {
@@ -632,6 +708,41 @@ body {
 .tag-amber { border: 1px solid rgba(201,154,74,0.6) !important; color: var(--amber) !important; }
 .tag-dim { border: 1px solid var(--hair-bright) !important; color: var(--ink-3) !important; }
 .tag-focus { border: 1px solid var(--teal) !important; color: var(--teal) !important; }
+
+/* vessel evidence popup */
+.ves-pop-wrap .leaflet-popup-content-wrapper {
+  background: rgba(13, 16, 22, 0.96);
+  color: var(--ink);
+  border: 1px solid var(--hair-bright);
+  border-radius: 0;
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.5);
+}
+.ves-pop-wrap .leaflet-popup-tip { background: rgba(13, 16, 22, 0.96); }
+.ves-pop-wrap .leaflet-popup-content { margin: 12px 14px; line-height: 1.4; }
+.ves-pop { font-family: var(--mono); min-width: 220px; }
+.vp-name { font-size: 12.5px; font-weight: 600; letter-spacing: 0.05em; white-space: nowrap; }
+.vp-name .vp-star { color: var(--red); font-weight: 600; }
+.vp-meta { font-size: 9.5px; color: var(--ink-3); letter-spacing: 0.06em; margin: 3px 0 6px; }
+.vp-score { font-size: 11px; color: var(--ink-2); border-bottom: 1px solid var(--hair-soft); padding-bottom: 6px; }
+.vp-score b { color: var(--amber); font-weight: 600; }
+.vp-reasons { list-style: none; margin: 6px 0 0; padding: 0; }
+.vp-reasons li { font-size: 10px; color: var(--ink-3); line-height: 1.5; }
+.vp-reasons li::before { content: '— '; color: var(--ink-4); }
+.vp-hint { font-size: 8.5px; color: var(--ink-4); margin-top: 8px; letter-spacing: 0.05em; }
+
+/* reset view control (custom Leaflet bar button) */
+.reset-btn {
+  width: 30px !important;
+  height: 30px !important;
+  line-height: 28px !important;
+  display: grid !important;
+  place-items: center;
+  font-size: 15px;
+  color: var(--ink-3) !important;
+  background: rgba(17, 21, 28, 0.92) !important;
+  border-radius: 0 !important;
+}
+.reset-btn:hover { color: var(--teal) !important; }
 
 /* vessel markers */
 .vm { width: 15px; height: 15px; position: relative; display: inline-block; }

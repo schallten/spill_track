@@ -87,14 +87,14 @@ export default function App() {
           <div className="brand-glyph">◉</div>
           <div>
             <div className="brand-name">SPILL TRACK</div>
-            <div className="brand-sub">MARITIME INTELLIGENCE · OPS CONSOLE</div>
+            <div className="brand-sub">MARITIME SATELLITE MONITORING</div>
           </div>
         </div>
         <div className="badges-row">
-          <span className="badge"><span className="key">PSID</span><b>26143</b></span>
+          <span className="badge"><span className="key">PROBLEM</span><b>26143</b></span>
           <span className="badge"><span className="key">ORG</span><b>NTRO</b></span>
           <span className="badge"><span className="key">THEME</span><b>SPACE TECH + SOFTWARE</b></span>
-          <span className="badge"><span className="key">SECTOR</span><b>ARABIAN SEA · SECTOR-7</b></span>
+          <span className="badge"><span className="key">REGION</span><b>ARABIAN SEA</b></span>
         </div>
         <div className="hdr-right">
           <div className="hdr-cell"><div className="t amber">{`T+${fmtClock(Math.floor(elapsed / 1000))}`}</div><div className="l">PIPELINE ELAPSED</div></div>
@@ -109,7 +109,7 @@ export default function App() {
       {/* stage rail */}
       <aside className="rail">
         <div className="clip"><div className="clip-in">
-          <div className="panel-title"><span className="tick">▮</span> MISSION PIPELINE</div>
+          <div className="panel-title"><span className="tick">▮</span> ANALYSIS PIPELINE</div>
           <div className="stages">
             {STAGES.map(s => {
               const active = phase === 'run' && elapsed >= s.win[0] && elapsed < s.win[1]
@@ -136,9 +136,16 @@ export default function App() {
                 {phase === 'idle' ? '▶ RUN ANALYSIS' : '↻ RE-RUN ANALYSIS'}
               </button>
             )}
-            {phase === 'done' && !report && (
-              <button className="reportbtn" onClick={() => setReport(true)}>⎘ GENERATE REPORT</button>
-            )}
+            <button className="reportbtn" onClick={() => setReport(true)}>⎘ GENERATE REPORT</button>
+            <div className="drivectl">
+              <span className="dlabel">STEP THROUGH</span>
+              <div className="dbtns">
+                {STAGES.map((s, i) => (
+                  <button key={s.name} className={`dbtn${i === 0 && phase !== 'run' ? ' on' : ''}`}
+                    onClick={() => seek(s.win[0] + TICK)} title={`Jump to ${s.name}`}>{i + 1}</button>
+                ))}
+              </div>
+            </div>
           </div>
       </div></div>
       <div className="clip srcbox"><div className="clip-in">
@@ -158,13 +165,13 @@ export default function App() {
       {/* tactical map */}
       <main className="mapcell clip"><div className="clip-in">
         <div className="panel-title">
-          <span className="tick">▮</span> TACTICAL PLOT — SENTINEL-1 OVERLAY
+          <span className="tick">▮</span> ANALYSIS — SENTINEL-1 OVERLAY
           <span style={{ marginLeft: 'auto', color: 'var(--ink-4)', letterSpacing: '0.12em' }}>
             GRID WGS-84 · MERCATOR AUX
           </span>
         </div>
         <div className="panel-body mapwrap">
-          <TacticalMap elapsed={elapsed} idle={phase === 'idle'} highlightId={hoverId} />
+          <TacticalMap elapsed={elapsed} idle={phase === 'idle'} highlightId={hoverId} onSelect={setHoverId} />
           {narration && (
             <div className="narration" key={narration.t}>
               <span className="n-step">{narration.step}</span>
@@ -193,9 +200,9 @@ export default function App() {
       <ConsolePanel entries={entries} />
 
       <footer className="footer">
-        <span>// UNCLASSIFIED // FOR DEMONSTRATION ONLY //</span>
+        <span>// FOR DEMONSTRATION · SYNTHETIC DATA //</span>
         <span className="kbd-hint">SPACE play/pause · 1·2·3 jump stage · R replay · G report · ESC close</span>
-        <span>UPLINK <b>SIMULATED</b> · SENSOR <b>S1A</b> · OP <b>RIBO</b> · SESSION <b>{uptime}</b> · BUILD <b>2.4.1</b></span>
+        <span>MODE <b>SIMULATED</b> · SENSOR <b>S1A</b> · OPERATOR <b>RIBO</b> · SESSION <b>{uptime}</b> · BUILD <b>2.4.1</b></span>
       </footer>
 
       {report && <Dossier onClose={() => setReport(false)} />}

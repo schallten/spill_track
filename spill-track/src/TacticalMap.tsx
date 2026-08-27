@@ -61,7 +61,7 @@ interface VesselLayers {
   mark: L.Marker
 }
 
-export function TacticalMap({ elapsed, idle, highlightId }: { elapsed: number; idle: boolean; highlightId: string | null }) {
+export function TacticalMap({ elapsed, idle, highlightId, onSelect }: { elapsed: number; idle: boolean; highlightId: string | null; onSelect?: (id: string | null) => void }) {
   const boxRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<L.Map | null>(null)
   const layRef = useRef<Partial<FixedLayers>>({})
@@ -81,6 +81,22 @@ export function TacticalMap({ elapsed, idle, highlightId }: { elapsed: number; i
       zoomControl: false,
       attributionControl: false,
     })
+    L.control.zoom({ position: 'topright' }).addTo(map)
+    const ResetControl = L.Control.extend({
+      options: { position: 'topright' },
+      onAdd() {
+        const b = L.DomUtil.create('a', 'leaflet-bar reset-btn')
+        b.href = '#'
+        b.title = 'Reset view'
+        b.innerHTML = '⌂'
+        L.DomEvent.on(b, 'click', (e: Event) => {
+          L.DomEvent.stop(e)
+          map.setView([15.0, 65.0], 5)
+        })
+        return b
+      },
+    })
+    new ResetControl().addTo(map)
     L.tileLayer('tiles/{z}/{x}_{y}.png', {
       minZoom: 5,
       maxZoom: 8,
@@ -92,6 +108,7 @@ export function TacticalMap({ elapsed, idle, highlightId }: { elapsed: number; i
     L.control.scale({ imperial: false, position: 'bottomleft' }).addTo(map)
     map.on('mousemove', (e: L.LeafletMouseEvent) => setCursor([e.latlng.lat, e.latlng.lng]))
     map.on('mouseout', () => setCursor(null))
+    map.on('click', () => onSelect?.(null))
     mapRef.current = map
 
     const slickLL = SLICK.map(ptToLL)
@@ -145,6 +162,17 @@ export function TacticalMap({ elapsed, idle, highlightId }: { elapsed: number; i
         opacity: 0,
       })
         .bindTooltip(`${v.name} · P=${v.score.toFixed(2)}`, { permanent: true, direction: 'bottom', offset: [0, 10], className: `tag ${i === 0 ? 'tag-focus' : 'tag-dim'}` })
+        .bindPopup(
+          `<div class="ves-pop">
+            <div class="vp-name">${v.name}${i === 0 ? ' <span class="vp-star">★ PRIMARY</span>' : ''}</div>
+            <div class="vp-meta">${v.type} · ${v.flag} · ${v.imo}</div>
+            <div class="vp-score">LIKELIHOOD <b>${Math.round(v.score * 100)}%</b></div>
+            <ul class="vp-reasons">${v.reasons.map(r => `<li>${r}</li>`).join('')}</ul>
+            <div class="vp-hint">track plotted on map · click empty map to clear</div>
+          </div>`,
+          { className: 'ves-pop-wrap' },
+        )
+        .on('click', () => onSelect?.(v.id))
         .addTo(map)
       return {
         track: L.polyline(trackLL, { color: col, weight: i === 0 ? 2 : 1.4, opacity: 0 }).addTo(map),

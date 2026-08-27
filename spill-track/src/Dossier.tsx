@@ -12,7 +12,7 @@ export function Dossier({ onClose }: { onClose: () => void }) {
       </div>
 
       <div className="ds-page">
-        <div className="ds-class">UNCLASSIFIED // DEMONSTRATION // SYNTHETIC DATA</div>
+        <div className="ds-class">DEMONSTRATION // SYNTHETIC DATA // FOR PROPOSAL REVIEW</div>
 
         <header className="ds-head">
           <div>
@@ -24,7 +24,7 @@ export function Dossier({ onClose }: { onClose: () => void }) {
               <tr><th>REFERENCE</th><td>{REF}</td></tr>
               <tr><th>PROBLEM ID</th><td>26143 · NTRO</td></tr>
               <tr><th>DATE</th><td>{new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</td></tr>
-              <tr><th>SECTOR</th><td>Arabian Sea · Sector-7</td></tr>
+              <tr><th>REGION</th><td>Arabian Sea</td></tr>
             </tbody>
           </table>
         </header>
@@ -107,7 +107,7 @@ export function Dossier({ onClose }: { onClose: () => void }) {
           </div>
         </footer>
 
-        <div className="ds-class">UNCLASSIFIED // DEMONSTRATION // SYNTHETIC DATA</div>
+        <div className="ds-class">DEMONSTRATION // SYNTHETIC DATA // FOR PROPOSAL REVIEW</div>
       </div>
     </div>
   )

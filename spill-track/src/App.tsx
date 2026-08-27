@@ -6,6 +6,7 @@ import { MetricsPanel, SuspectPanel, ConsolePanel } from './Panels'
 import { Timeline } from './Timeline'
 import { Dossier } from './Dossier'
 import { Impact } from './Impact'
+import { Zen } from './Zen'
 
 const TICK = 100
 
@@ -24,6 +25,7 @@ export default function App() {
   const [hoverId, setHoverId] = useState<string | null>(null)
   const [report, setReport] = useState(false)
   const [impact, setImpact] = useState(false)
+  const [zen, setZen] = useState(false)
   const [now, setNow] = useState(() => new Date())
   const [uptime, setUptime] = useState('00:00')
 
@@ -67,7 +69,7 @@ export default function App() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { setReport(false); setImpact(false) }
+      if (e.key === 'Escape') { setReport(false); setImpact(false); setZen(false) }
       if (e.target instanceof HTMLInputElement) return
       if (e.key === ' ') { e.preventDefault(); toggle() }
       else if (['1', '2', '3'].includes(e.key)) seek(STAGES[Number(e.key) - 1].win[0] + TICK)
@@ -138,6 +140,7 @@ export default function App() {
                 {phase === 'idle' ? '▶ RUN ANALYSIS' : '↻ RE-RUN ANALYSIS'}
               </button>
             )}
+            <button className="zenbtn" onClick={() => setZen(true)}>◎ ZEN</button>
             <button className="impactbtn" onClick={() => setImpact(true)}>ƒ IMPACT</button>
             <button className="reportbtn" onClick={() => setReport(true)}>⎘ GENERATE REPORT</button>
             <div className="drivectl">
@@ -210,6 +213,17 @@ export default function App() {
 
       {report && <Dossier onClose={() => setReport(false)} />}
       {impact && <Impact onClose={() => setImpact(false)} />}
+      {zen && (
+        <Zen
+          elapsed={elapsed}
+          phase={phase}
+          hoverId={hoverId}
+          onHover={setHoverId}
+          onSelect={setHoverId}
+          startRun={startRun}
+          onExit={() => setZen(false)}
+        />
+      )}
     </div>
   )
 }

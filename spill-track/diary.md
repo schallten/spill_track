@@ -41,6 +41,9 @@ This lifts Innovation (20%), Technical Approach (20%) and Prototype/Demo (20%).
       · claim made accurate: ~13 s figure + phase durations (3.6 / 4.2 / 5.0 s) taken from the live demo
         timeline (TOTAL_MS = 13 200 ms), labelled as the in-app demo run, with a footnote clarifying
         convention-side figures are representative estimates
+- [x] ZEN mode (◎ ZEN button): full-screen focused view showing ONLY the RUN ANALYSIS button,
+      the map, the ranked suspect list, and an EXIT ZEN button — compact suspect cards (reasons
+      collapsed), hidden sensitivity/weights editor, sized to fill the screen; Escape or ✕ EXIT ZEN to leave.
 - [ ] Realism: live clock/sensor readouts; "simulated vs real data" toggle
 - [ ] Q&A readiness: on-screen "Why / How it works" panel + 1-page judge cheat-sheet
 - [ ] Export: CSV / GeoJSON / JSON download of suspect evidence (production-grade feel)

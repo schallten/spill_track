@@ -71,7 +71,7 @@ const renorm = (w: Record<FactorKey, number>, k: FactorKey, v: number): Record<F
   return next
 }
 
-function SuspectCard({ v, score, rank, hovered, onHover }: { v: Vessel; score: number; rank: number; hovered: boolean; onHover: (id: string | null) => void }) {
+function SuspectCard({ v, score, rank, hovered, onHover, compact }: { v: Vessel; score: number; rank: number; hovered: boolean; onHover: (id: string | null) => void; compact?: boolean }) {
   const [w, setW] = useState(0)
   useEffect(() => {
     const id = requestAnimationFrame(() => setW(score))
@@ -117,9 +117,11 @@ function SuspectCard({ v, score, rank, hovered, onHover }: { v: Vessel; score: n
         </div>
         <span className="sc-pct" style={{ color: pctCol }}>{Math.round(w * 100)}%</span>
       </div>
-      <ul className="sc-reasons">
-        {v.reasons.map(r => <li key={r}>{r}</li>)}
-      </ul>
+      {!compact && (
+        <ul className="sc-reasons">
+          {v.reasons.map(r => <li key={r}>{r}</li>)}
+        </ul>
+      )}
     </div>
   )
 }
@@ -139,26 +141,44 @@ function WeightSlider({ k, value, onChange }: { k: FactorKey; value: number; onC
   )
 }
 
-export function SuspectPanel({ elapsed, hoverId, onHover }: { elapsed: number; hoverId: string | null; onHover: (id: string | null) => void }) {
+function useSuspectRanking(elapsed: number) {
   const revealed = Math.max(0, Math.min(VESSELS.length, Math.floor((elapsed - 8_900) / 800)))
   const [weights, setWeights] = useState<Record<FactorKey, number>>({ ...DEFAULTS })
   const dirty = FACTOR_META.some(m => Math.abs(weights[m.k] - DEFAULTS[m.k]) > 1e-6)
-
   const ranked = [...VESSELS]
     .map(v => ({ v, score: liveScore(v, weights) }))
     .sort((a, b) => b.score - a.score)
+  return { revealed, weights, setWeights, dirty, ranked }
+}
+
+function SuspectCards({ ranked, revealed, hoverId, onHover, compact }: {
+  ranked: { v: Vessel; score: number }[]
+  revealed: number
+  hoverId: string | null
+  onHover: (id: string | null) => void
+  compact?: boolean
+}) {
+  return (
+    <>
+      {revealed === 0 && (
+        <div className="suspect-hint">AWAITING AIS CORRELATION…</div>
+      )}
+      {ranked.slice(0, revealed).map(({ v, score }, i) => (
+        <SuspectCard key={v.id} v={v} score={score} rank={i + 1} hovered={hoverId === v.id} onHover={onHover} compact={compact} />
+      ))}
+    </>
+  )
+}
+
+export function SuspectPanel({ elapsed, hoverId, onHover }: { elapsed: number; hoverId: string | null; onHover: (id: string | null) => void }) {
+  const { revealed, weights, setWeights, dirty, ranked } = useSuspectRanking(elapsed)
 
   return (
     <div className="clip suspects">
       <div className="clip-in">
         <div className="panel-title"><span className="tick">▮</span> ATTRIBUTION — RANKED SUSPECTS</div>
         <div className="panel-body suspects-body" onMouseLeave={() => onHover(null)}>
-          {revealed === 0 && (
-            <div className="suspect-hint">AWAITING AIS CORRELATION…</div>
-          )}
-          {ranked.slice(0, revealed).map(({ v, score }, i) => (
-            <SuspectCard key={v.id} v={v} score={score} rank={i + 1} hovered={hoverId === v.id} onHover={onHover} />
-          ))}
+          <SuspectCards ranked={ranked} revealed={revealed} hoverId={hoverId} onHover={onHover} />
         </div>
         <div className="weights">
           <div className="whead">
@@ -175,6 +195,22 @@ export function SuspectPanel({ elapsed, hoverId, onHover }: { elapsed: number; h
           <b>SCORE =</b> {FACTOR_META.map(m => `${weights[m.k].toFixed(2)}·${m.k}`).join(' + ')}
           <span className="hint">HOVER CARD → TRACK</span>
         </div>
+      </div>
+    </div>
+  )
+}
+
+/* zen-mode suspect list: cards only, no weights/editor chrome */
+export function ZenSuspects({ elapsed, hoverId, onHover }: { elapsed: number; hoverId: string | null; onHover: (id: string | null) => void }) {
+  const { revealed, ranked } = useSuspectRanking(elapsed)
+  return (
+    <div className="zen-sus" onMouseLeave={() => onHover(null)}>
+      <div className="panel-title"><span className="tick">▮</span> ATTRIBUTION — RANKED SUSPECTS</div>
+      <div className="zen-susbody">
+        {(revealed === 0 ? [] : ranked.slice(0, revealed)).map(({ v, score }, i) => (
+          <SuspectCard key={v.id} v={v} score={score} rank={i + 1} hovered={hoverId === v.id} onHover={onHover} compact />
+        ))}
+        {revealed === 0 && <div className="suspect-hint">AWAITING AIS CORRELATION…</div>}
       </div>
     </div>
   )

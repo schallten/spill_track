@@ -36,7 +36,8 @@ This lifts Innovation (20%), Technical Approach (20%) and Prototype/Demo (20%).
       language (PROBLEM / REGION / ANALYSIS PIPELINE / MODE) while keeping the dashboard tone
 
 ### Backlog (higher priority, not started)
-- [ ] Impact demo: side-by-side "13 s pipeline vs 40–80 day manual method" with cost/error KPIs
+- [x] Impact demo: side-by-side "13 s pipeline vs 40–80 day manual method" with cost/error KPIs
+      (added ƒ IMPACT modal — days→13 s headline, phased breakdown, 6-row KPI table, why-it-matters note)
 - [ ] Realism: live clock/sensor readouts; "simulated vs real data" toggle
 - [ ] Q&A readiness: on-screen "Why / How it works" panel + 1-page judge cheat-sheet
 - [ ] Export: CSV / GeoJSON / JSON download of suspect evidence (production-grade feel)

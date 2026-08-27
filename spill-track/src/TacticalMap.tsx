@@ -236,7 +236,7 @@ export function TacticalMap({ elapsed, idle, highlightId, onSelect }: { elapsed:
     VESSELS.forEach((v, i) => {
       const vl = vessels[i]
       if (!vl) return
-      const vP = clamp01(atP * 6 - i * 1.05)
+      const vP = clamp01(atP * 7 - i * 0.42)
       const focused = highlightId === v.id
       const dimmed = highlightId !== null && !focused
       const baseOp = Math.min(1, vP * 1.6) * (dimmed ? 0.14 : focused ? 1 : 0.92)

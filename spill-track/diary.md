@@ -44,6 +44,13 @@ This lifts Innovation (20%), Technical Approach (20%) and Prototype/Demo (20%).
 - [x] ZEN mode (◎ ZEN button): full-screen focused view showing ONLY the RUN ANALYSIS button,
       the map, the ranked suspect list, and an EXIT ZEN button — compact suspect cards (reasons
       collapsed), hidden sensitivity/weights editor, sized to fill the screen; Escape or ✕ EXIT ZEN to leave.
+- [x] More ships: expanded VESSELS 4 → 10 (added MSC LUCKY ANGEL, FV MATSYA-12, MT PRABHU SAMUDRA,
+      EVER PROSPER, FV ARABIAN QUEEN, MT NORTHWIND VENTURE). Bumped AIS contact count + CONTACT log
+      lines, reveal rate (8900+400k) + map cascade spacing (atP*7 − i*0.42) so all 10 show in-window.
+- [x] Geometry ↔ attribution consistency: redrew low-confidence tracks that previously crossed the
+      origin/slick (V5 → far S, V7 → far N, V10 → N) so only the prime suspect (V1) passes through the
+      origin; other ships keep clear. Verified min-dist-to-origin: V1=0px, V2=36px, V3=216px … V7=127px,
+      V5=251px, V10=115px. Makes "why is one blamed and not the other" visually self-evident.
 - [ ] Realism: live clock/sensor readouts; "simulated vs real data" toggle
 - [ ] Q&A readiness: on-screen "Why / How it works" panel + 1-page judge cheat-sheet
 - [ ] Export: CSV / GeoJSON / JSON download of suspect evidence (production-grade feel)

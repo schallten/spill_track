@@ -120,6 +120,114 @@ export const VESSELS: Vessel[] = [
       'AIS gap 40 min — typical fishing pattern',
     ],
   },
+  {
+    id: 'V5',
+    factors: { prox: 0.1, traj: 0.08, spd: 0.06, typ: 0.05, hist: 0.04 },
+    name: 'MSC LUCKY ANGEL',
+    type: 'CARGO',
+    flag: 'PA · LIBERIA',
+    imo: 'IMO 9432107',
+    score: 0.33,
+    track: [
+      [80, 585], [220, 572], [360, 560], [500, 548], [640, 538], [790, 530],
+    ],
+    headingDeg: -6,
+    reasons: [
+      'crosses corridor 31 km S of origin',
+      'steady 12.8 kn — no speed anomaly',
+      'historic no-violation record',
+    ],
+  },
+  {
+    id: 'V6',
+    factors: { prox: 0.05, traj: 0.04, spd: 0.02, typ: 0.02, hist: 0.02 },
+    name: 'FV MATSYA-12',
+    type: 'FISHING',
+    flag: 'IN · KOCHI',
+    imo: 'REG IND-KL-18',
+    score: 0.15,
+    track: [
+      [760, 500], [750, 540], [745, 575],
+    ],
+    headingDeg: 80,
+    reasons: [
+      'inshore waters, 68 km E of origin',
+      'no AIS in window — idle drift',
+      'small bunker capacity (<30 t)',
+    ],
+  },
+  {
+    id: 'V7',
+    factors: { prox: 0.04, traj: 0.03, spd: 0.02, typ: 0.02, hist: 0.01 },
+    name: 'MT PRABHU SAMUDRA',
+    type: 'TANKER',
+    flag: 'IN · MUMBAI',
+    imo: 'IMO 9612085',
+    score: 0.12,
+    track: [
+      [90, 150], [220, 165], [350, 178], [480, 188], [610, 195], [760, 205],
+    ],
+    headingDeg: 10,
+    reasons: [
+      'far N lane, 74 km from origin',
+      'loaded crude, clean AIS trail',
+      'course steady, speed normal',
+    ],
+  },
+  {
+    id: 'V8',
+    factors: { prox: 0.03, traj: 0.03, spd: 0.02, typ: 0.01, hist: 0.01 },
+    name: 'EVER PROSPER',
+    type: 'CARGO',
+    flag: 'SG · SINGAPORE',
+    imo: 'IMO 9771124',
+    score: 0.1,
+    track: [
+      [90, 560], [230, 548], [370, 535], [510, 520], [650, 505], [790, 490],
+    ],
+    headingDeg: -6,
+    reasons: [
+      'southern lane, 54 km SSE of origin',
+      'transit speed only, no deviation',
+      'clean compliance history',
+    ],
+  },
+  {
+    id: 'V9',
+    factors: { prox: 0.02, traj: 0.02, spd: 0.02, typ: 0.01, hist: 0.01 },
+    name: 'FV ARABIAN QUEEN',
+    type: 'FISHING',
+    flag: 'LR · LANGKAWI',
+    imo: 'REG MY-LKW-03',
+    score: 0.08,
+    track: [
+      [700, 150], [690, 200], [660, 235], [615, 255],
+    ],
+    headingDeg: 40,
+    reasons: [
+      'high seas trawl, 74 km from origin',
+      'AIS gap 55 min — gear handling',
+      'no dark-pattern history',
+    ],
+  },
+  {
+    id: 'V10',
+    factors: { prox: 0.02, traj: 0.01, spd: 0.01, typ: 0.01, hist: 0.01 },
+    name: 'MT NORTHWIND VENTURE',
+    type: 'TANKER',
+    flag: 'PA · PANAMA',
+    imo: 'IMO 9831066',
+    score: 0.06,
+    track: [
+      [790, 120], [700, 158], [610, 196], [520, 232],
+    ],
+    headingDeg: 88,
+    reasons: [
+      'exits corridor NE, 58 km from origin',
+      'clean ballast passage, lamp lit',
+      'speed within lane limits',
+    ],
+  },
 ]
 
 export interface LogLine {
@@ -140,14 +248,18 @@ export const LOG_SCRIPT: LogLine[] = [
   { t: 4_600, level: 'info', text: 'MODEL    Lagrangian back-advection · 512 tracers · Δt −10 min' },
   { t: 6_300, level: 'info', text: 'TRACE    ensemble converging on inverse trajectory…' },
   { t: 8_000, level: 'ok', text: `ORIGIN   est. ${ORIGIN_LABEL} ±14 km · slick age ≈ 9 h` },
-  { t: 8_300, level: 'info', text: 'QUERY    AIS ±4 h · 50 km radius → 4 contacts resolved' },
+  { t: 8_300, level: 'info', text: 'QUERY    AIS ±4 h · 50 km radius → 10 contacts resolved' },
   { t: 8_900, level: 'info', text: 'SCORE    bayesian: prox .30 traj .25 speed .20 type .15 hist .10' },
   { t: 9_500, level: 'warn', text: 'CONTACT  MT OCEAN GLORY · P=0.92 ★ PRIMARY SUSPECT FLAGGED' },
-  { t: 10_300, level: 'info', text: 'CONTACT  MT SEA ANGEL · P=0.74 — secondary interest' },
-  { t: 11_100, level: 'info', text: 'CONTACT  MV KOCHI EXPRESS · P=0.41 — low likelihood' },
-  { t: 11_900, level: 'info', text: 'CONTACT  FV NEENDAKARA-7 · P=0.18 — ruled unlikely' },
-  { t: 12_500, level: 'ok', text: 'DOSSIER  attribution complete · top-3 hit rate 80% (validated)' },
-  { t: 12_900, level: 'ok', text: 'PIPELINE COMPLETE — review suspect panel →' }
+  { t: 10_000, level: 'info', text: 'CONTACT  MT SEA ANGEL · P=0.74 — secondary interest' },
+  { t: 10_500, level: 'info', text: 'CONTACT  MV KOCHI EXPRESS · P=0.41 — low likelihood' },
+  { t: 11_000, level: 'info', text: 'CONTACT  MSC LUCKY ANGEL · P=0.33 — transiting' },
+  { t: 11_400, level: 'info', text: 'CONTACT  FV NEENDAKARA-7 · P=0.18 — ruled unlikely' },
+  { t: 11_800, level: 'info', text: 'CONTACT  FV MATSYA-12 · P=0.15 / MT PRABHU SAMUDRA · P=0.12' },
+  { t: 12_200, level: 'info', text: 'CONTACT  EVER PROSPER · P=0.10 / FV ARABIAN QUEEN · P=0.08' },
+  { t: 12_500, level: 'info', text: 'CONTACT  MT NORTHWIND VENTURE · P=0.06 — tidied lane' },
+  { t: 12_900, level: 'ok', text: 'DOSSIER  attribution complete · 10 screened · top-3 hit rate 80% (validated)' },
+  { t: 13_150, level: 'ok', text: 'PIPELINE COMPLETE — review suspect panel →' }
 ]
 
 /** Plain-English narration shown as captions over the map */

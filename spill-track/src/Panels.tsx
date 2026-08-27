@@ -142,7 +142,7 @@ function WeightSlider({ k, value, onChange }: { k: FactorKey; value: number; onC
 }
 
 function useSuspectRanking(elapsed: number) {
-  const revealed = Math.max(0, Math.min(VESSELS.length, Math.floor((elapsed - 8_900) / 800)))
+  const revealed = Math.max(0, Math.min(VESSELS.length, Math.floor((elapsed - 8_900) / 400)))
   const [weights, setWeights] = useState<Record<FactorKey, number>>({ ...DEFAULTS })
   const dirty = FACTOR_META.some(m => Math.abs(weights[m.k] - DEFAULTS[m.k]) > 1e-6)
   const ranked = [...VESSELS]
